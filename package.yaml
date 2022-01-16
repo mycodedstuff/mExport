@@ -1,0 +1,87 @@
+name: mExport
+version: 0.0.1
+author: Aman Singh
+
+default-extensions:
+  - BangPatterns
+  - DeriveFunctor
+  - DeriveGeneric
+  - DuplicateRecordFields
+  - OverloadedStrings
+  - TypeApplications
+  - LambdaCase
+
+library:
+  source-dirs: src
+  ghc-options:
+    - -O2
+    - -Werror=missing-fields
+    - -Werror=partial-type-signatures
+    - -Wincomplete-patterns
+    - -Werror=missing-signatures
+    - -Wwarn=incomplete-record-updates
+    - -j4
+    - -fomit-interface-pragmas
+    - -fprint-potential-instances
+  dependencies:
+    - base
+    - hint
+    - haskell-src-exts
+    - optparse-applicative
+    - transformers
+    - haskell-names
+    - unordered-containers
+    - hashable
+    - filepath
+    - directory
+    - text
+
+executables:
+  mexport:
+    main: Main.hs
+    source-dirs: src
+    ghc-options:
+      - -O2
+      - -Werror=missing-fields
+      - -Werror=partial-type-signatures
+      - -Wincomplete-patterns
+      - -Werror=missing-signatures
+      - -Wwarn=incomplete-record-updates
+      - -j4
+      - -fomit-interface-pragmas
+      - -fprint-potential-instances
+    dependencies:
+      - base
+      - hint
+      - haskell-src-exts
+      - optparse-applicative
+      - transformers
+      - haskell-names
+      - unordered-containers
+      - hashable
+      - filepath
+      - directory
+      - text
+
+tests:
+  mexport-test:
+    main: Main.hs
+    source-dirs: test
+    ghc-options:
+      - -O2
+      - -Werror=missing-fields
+      - -Werror=partial-type-signatures
+      - -Wincomplete-patterns
+      - -Werror=missing-signatures
+      - -Wwarn=incomplete-record-updates
+      - -j4
+      - -fomit-interface-pragmas
+      - -fprint-potential-instances
+    dependencies:
+      - base
+      - hint
+      - haskell-src-exts
+      - optparse-applicative
+      - transformers
+      - haskell-names
+      - mExport
