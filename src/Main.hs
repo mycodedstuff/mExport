@@ -1,15 +1,17 @@
 module Main where
 
+import Control.Monad
 import Prelude
 
-import qualified Config.Config as CC
+import qualified Lib.Config as CC
 import qualified Lib.MExport as Lib
-import Types (Action(..))
-import qualified Utils.Utils as U
+
+import qualified Types as T (Action(..))
+import qualified Utils as U
 
 main :: IO ()
 main = do
   action <- U.getAction CC.getConfig
   case action of
-    ShowVersion -> putStrLn "mExport version 0.0.1"
-    Run config context -> Lib.mExport config context
+    T.ShowVersion -> putStrLn "mExport version 0.0.1"
+    T.Run config context -> void $ Lib.mExport config context

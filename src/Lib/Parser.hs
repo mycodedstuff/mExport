@@ -5,35 +5,27 @@ module Lib.Parser
 import Control.Monad
 import Prelude
 
-import qualified Config.Config as CC
 import qualified Data.Foldable as DF
 import qualified Data.HashMap.Strict as HM
 import qualified Data.IORef as DI
 import qualified Data.List as DL
 import qualified Data.Maybe as DM
-import qualified Data.Text as DT
-import qualified Data.Text.IO as TIO
-import qualified Data.Text.Internal.Search as DTS
 import qualified Language.Haskell.Exts as H
-import Language.Haskell.Exts.SrcLoc
-import qualified Language.Haskell.Interpreter as I
-import Language.Haskell.Interpreter (GhcError(..), Interpreter, InterpreterError(..))
 import qualified Language.Haskell.Names.SyntaxUtils as SU
-import qualified Lib.Types as LT
 import qualified System.Directory as SD
 import qualified System.FilePath as SF
-import qualified Utils.Utils as U
 
-parser :: String -> IO ()
-parser moduleSrc = do
-  moduleMapRef <- DI.newIORef (HM.empty :: LT.ModuleMap)
-  moduleExportRef <- DI.newIORef (HM.empty :: HM.HashMap String H.SrcSpan)
+import qualified Lib.Config as CC
+import qualified Lib.Types as LT
+import qualified Lib.Utils as U
+
+parser :: CC.Config -> String -> IO (HM.HashMap String (H.ExportSpecList H.SrcSpanInfo))
+parser _ moduleSrc = do
   let mainSrcDir = SF.takeDirectory moduleSrc
-  traverseModules moduleMapRef moduleExportRef mainSrcDir moduleSrc
+  moduleMapRef <- DI.newIORef (HM.empty :: LT.ModuleMap)
+  traverseModules moduleMapRef mainSrcDir moduleSrc
   moduleMap <- DI.readIORef moduleMapRef
-  moduleExportMap <- DI.readIORef moduleExportRef
-  writeExports ((H.prettyPrint . transform) <$> moduleMap) moduleExportMap mainSrcDir
-  return ()
+  return $ transform <$> moduleMap
 
 dummySpanInfo :: H.SrcSpanInfo
 dummySpanInfo = H.SrcSpanInfo {H.srcInfoSpan = H.SrcSpan "<interactive>" 0 0 0 0, H.srcInfoPoints = []}
@@ -41,56 +33,36 @@ dummySpanInfo = H.SrcSpanInfo {H.srcInfoSpan = H.SrcSpan "<interactive>" 0 0 0 0
 transform :: HM.HashMap String (H.ExportSpec H.SrcSpanInfo) -> H.ExportSpecList H.SrcSpanInfo
 transform specMap = H.ExportSpecList dummySpanInfo (HM.elems specMap)
 
-traverseModules :: DI.IORef LT.ModuleMap -> DI.IORef (HM.HashMap String H.SrcSpan) -> String -> String -> IO ()
-traverseModules moduleMapRef moduleExportRef mainSrcDir moduleSrc
-  -- putStrLn $ "Parsing module: " <> moduleSrc
- = do
+traverseModules :: DI.IORef LT.ModuleMap -> String -> String -> IO ()
+traverseModules moduleMapRef mainSrcDir moduleSrc = do
   moduleContent <- readFile moduleSrc
-  _module <- parseModuleContent moduleContent customExtensions
+  _module <- parseModuleContent moduleContent U.customExtensions
   let importDecls = SU.getImports _module
-      _mName@(H.ModuleName _ moduleName) = SU.getModuleName _module
-      maybeExportList = SU.getExportSpecList _module
-  moduleHead <-
-    case _module of
-      (H.Module _ (Just moduleHead) _ _ _) -> return moduleHead
-      _ -> error "Couldn't find head of module: " moduleName
-  let exportSpan = getExportCords moduleHead
-  exportSpanMap <- DI.readIORef moduleExportRef
-  DI.writeIORef moduleExportRef $ HM.insert moduleName exportSpan exportSpanMap
-  -- putStrLn $ "Imports of module: " <> moduleName
-  -- putStrLn (show importDecls)
-  -- putStrLn $ "Exports of module: " <> moduleName
-  -- putStrLn $ show $ SU.getExportSpecList _module
   DF.traverse_
     (\(H.ImportDecl _ (H.ModuleName _ name) _ _ _ _ _ specList) -> do
        let impModuleSrc = SF.joinPath [mainSrcDir, ((U.moduleToPath name) <> ".hs") :: SF.FilePath]
-      --  putStrLn $ "Import: " <> impModuleSrc
        moduleMap <- DI.readIORef moduleMapRef
        when (DM.isNothing $ HM.lookup name moduleMap) $ do
          moduleExists <- SD.doesFileExist impModuleSrc -- TODO: Add options to show warning if module doesn't exist
          when moduleExists $ do
-           traverseModules moduleMapRef moduleExportRef mainSrcDir impModuleSrc
+           traverseModules moduleMapRef mainSrcDir impModuleSrc
            case specList of
              Just (H.ImportSpecList _ hiding specs) -> do
-               unless hiding $ DF.traverse_ (addExportSpec moduleMapRef name) specs
+               unless hiding $ DF.traverse_ (addExportSpec name) specs
              _ -> return ())
     importDecls
   return ()
   where
-    addExportSpec :: DI.IORef LT.ModuleMap -> String -> H.ImportSpec H.SrcSpanInfo -> IO ()
-    addExportSpec moduleMapRef moduleName impSpec = do
+    addExportSpec :: String -> H.ImportSpec H.SrcSpanInfo -> IO ()
+    addExportSpec moduleName impSpec = do
       moduleMap <- DI.readIORef moduleMapRef
       let specMap = DM.fromMaybe HM.empty $ HM.lookup moduleName moduleMap
-          exportSpec = mapImportToExportDecl moduleName impSpec
+          exportSpec = mapImportToExportDecl impSpec
           idName = getIdentifier impSpec
       DI.writeIORef moduleMapRef $ HM.insert moduleName (HM.insertWith getPreference idName exportSpec specMap) moduleMap
 
-getExportCords :: H.ModuleHead H.SrcSpanInfo -> H.SrcSpan
-getExportCords (H.ModuleHead (H.SrcSpanInfo (H.SrcSpan _ _ _ r2 c2) _) (H.ModuleName (H.SrcSpanInfo (H.SrcSpan _ _ _ r1 c1) _) _) _ _) =
-  H.SrcSpan "<interactive>" r1 c1 r2 c2
-
-mapImportToExportDecl :: String -> H.ImportSpec H.SrcSpanInfo -> H.ExportSpec H.SrcSpanInfo
-mapImportToExportDecl moduleName =
+mapImportToExportDecl :: H.ImportSpec H.SrcSpanInfo -> H.ExportSpec H.SrcSpanInfo
+mapImportToExportDecl =
   \case
     (H.IVar l name) -> H.EVar l (H.UnQual l name)
     (H.IAbs l nameSpace name) -> H.EAbs l nameSpace (H.UnQual l name)
@@ -110,17 +82,17 @@ getIdentifier =
     getName (H.Symbol _ name) = name
 
 getPreference :: H.ExportSpec H.SrcSpanInfo -> H.ExportSpec H.SrcSpanInfo -> H.ExportSpec H.SrcSpanInfo
-getPreference x@(H.EModuleContents _ _) y = x
-getPreference x y@(H.EModuleContents _ _) = y
+getPreference x@(H.EModuleContents _ _) _ = x
+getPreference _ y@(H.EModuleContents _ _) = y
 getPreference x@(H.EThingWith l w q cName1) y@(H.EThingWith _ _ _ cName2) =
   if null cName1
     then x
     else if null cName2
            then y
            else H.EThingWith l w q $ DL.nub $ cName1 ++ cName2
-getPreference x y@(H.EThingWith _ _ _ _) = y
-getPreference x@(H.EVar _ _) y@(H.EAbs _ _ _) = y
-getPreference x y = x
+getPreference _ y@(H.EThingWith _ _ _ _) = y
+getPreference (H.EVar _ _) y@(H.EAbs _ _ _) = y
+getPreference x _ = x
 
 {-
   Parses the module content provided in the first param @moduleContent@
@@ -154,22 +126,3 @@ mode extensions = H.defaultParseMode {H.extensions = allExtensions ++ extensions
     allExtensions = filter isDisabledExtension H.knownExtensions
     isDisabledExtension (H.DisableExtension _) = False
     isDisabledExtension _ = True
-
--- TODO: Add options to provide extensions
-customExtensions :: [H.Extension]
-customExtensions = map H.EnableExtension [H.TypeApplications]
-
-writeExports :: HM.HashMap String String -> HM.HashMap String H.SrcSpan -> String -> IO ()
-writeExports moduleMap exportSpanMap mainSrcDir = do
-  let modules = HM.keys moduleMap
-  forM_
-    modules
-    (\moduleName -> do
-       let modulePath = SF.joinPath [mainSrcDir, ((U.moduleToPath moduleName) <> ".hs") :: SF.FilePath]
-       moduleContent <- TIO.readFile modulePath
-       let mNameIndex = (length moduleName) + (DM.fromMaybe 7 $ U.findFirstInText (DT.pack moduleName) moduleContent)
-           mWhereIndex = (DM.fromMaybe ((length moduleName) + 8) $ U.findFirstInText "where" moduleContent)
-           moduleStart = DT.take mNameIndex moduleContent
-           moduleRest = DT.drop (mWhereIndex + 5) moduleContent
-           moduleExport = DT.pack $ DM.fromMaybe ("" :: String) $ HM.lookup moduleName moduleMap
-       TIO.writeFile modulePath (moduleStart <> " " <> moduleExport <> " where" <> moduleRest))

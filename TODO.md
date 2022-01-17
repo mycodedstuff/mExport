@@ -10,11 +10,9 @@
 #### Refactor
 - Create a DSL for MExport
 - Use ReaderT to manage context
-- Separate parser from file IO
 
 #### Test
 - Add test for symbols (Eg. (\$), (<$>))
-- Return the exports per module from mExport to match expected outcome
 
 #### Feature
 - Consider existing exports

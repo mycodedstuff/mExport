@@ -1,12 +1,8 @@
 module Types where
 
-import qualified Config.Config as CC (Config)
-
-data Context =
-  Context
-    { moduleSrc :: String
-    }
+import qualified Lib.Config as CC (Config)
+import qualified Lib.Types as LT (Context)
 
 data Action
   = ShowVersion
-  | Run CC.Config Context
+  | Run CC.Config LT.Context

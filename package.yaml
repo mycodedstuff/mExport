@@ -15,26 +15,17 @@ library:
   source-dirs: src
   ghc-options:
     - -O2
-    - -Werror=missing-fields
-    - -Werror=partial-type-signatures
-    - -Wincomplete-patterns
-    - -Werror=missing-signatures
-    - -Wwarn=incomplete-record-updates
     - -j4
-    - -fomit-interface-pragmas
-    - -fprint-potential-instances
+    - -Wall
   dependencies:
     - base
-    - hint
+    - directory
+    - filepath
+    - haskell-names
     - haskell-src-exts
     - optparse-applicative
-    - transformers
-    - haskell-names
-    - unordered-containers
-    - hashable
-    - filepath
-    - directory
     - text
+    - unordered-containers
 
 executables:
   mexport:
@@ -42,46 +33,27 @@ executables:
     source-dirs: src
     ghc-options:
       - -O2
-      - -Werror=missing-fields
-      - -Werror=partial-type-signatures
-      - -Wincomplete-patterns
-      - -Werror=missing-signatures
-      - -Wwarn=incomplete-record-updates
       - -j4
-      - -fomit-interface-pragmas
-      - -fprint-potential-instances
+      - -Wall
     dependencies:
       - base
-      - hint
+      - directory
+      - filepath
+      - haskell-names
       - haskell-src-exts
       - optparse-applicative
-      - transformers
-      - haskell-names
-      - unordered-containers
-      - hashable
-      - filepath
-      - directory
       - text
+      - unordered-containers
 
 tests:
   mexport-test:
     main: Main.hs
     source-dirs: test
     ghc-options:
-      - -O2
-      - -Werror=missing-fields
-      - -Werror=partial-type-signatures
-      - -Wincomplete-patterns
-      - -Werror=missing-signatures
-      - -Wwarn=incomplete-record-updates
-      - -j4
-      - -fomit-interface-pragmas
-      - -fprint-potential-instances
+      - -Wall
     dependencies:
       - base
-      - hint
-      - haskell-src-exts
-      - optparse-applicative
-      - transformers
-      - haskell-names
+      - hspec
       - mExport
+      - text
+      - unordered-containers

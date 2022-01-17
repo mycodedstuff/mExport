@@ -2,29 +2,24 @@ module Lib.MExport
   ( mExport
   ) where
 
+import Control.Monad
 import Prelude
 
-import Control.Monad
-import qualified Data.List as DL
-import qualified Language.Haskell.Exts as H
-import Language.Haskell.Exts.SrcLoc
-import qualified Language.Haskell.Interpreter as I
-import Language.Haskell.Interpreter (GhcError(..), Interpreter, InterpreterError(..))
+import qualified Data.HashMap.Strict as HM
+import qualified Data.Text as DT
+import qualified System.FilePath as SF
 
-import qualified Config.Config as CC
+import qualified Lib.Config as CC
 import qualified Lib.Parser as LP
-import Types as T
+import qualified Lib.Pretty as LP
+import qualified Lib.Types as LT
+import qualified Lib.Utils as LU
 
-mExport :: CC.Config -> Context -> IO ()
+mExport :: CC.Config -> LT.Context -> IO (HM.HashMap String DT.Text)
 mExport config context = do
-  r <- I.runInterpreter $ I.liftIO $ LP.parser (T.moduleSrc context)
-  case r of
-    Left err -> putStrLn $ errorString err
-    Right () -> return ()
-
-errorString :: I.InterpreterError -> String
-errorString (WontCompile es) = DL.intercalate "\n" (header : map unbox es)
-  where
-    header = "ERROR: Won't compile:"
-    unbox (I.GhcError e) = e
-errorString e = show e
+  let moduleSrc = LT.moduleSrc context
+      mainSrcDir = SF.takeDirectory moduleSrc
+  exportMap <- LP.parser config moduleSrc
+  let formattedExports = LP.prettyPrint config <$> exportMap
+  when (CC.writeOnFile config) $ LU.writeExports formattedExports mainSrcDir
+  return formattedExports
