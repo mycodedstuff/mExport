@@ -17,5 +17,5 @@
 #### Note: Smuggler2 has option to add exports explicitly but it will add everything to the export list.
 
 #### To configure smuggler2 for your Haskell project follow the guide
-- [Stack users](./wiki/smuggler2-stack.md) - Smuggler2 github doesn't have any documentation for stack users, hence I've create one
-- [Smuggler2 Doc](https://github.com/jrp2014/smuggler2/blob/master/README.md)
+- <a href="https://github.com/mycodedstuff/mExport/blob/main/wiki/smuggler2-stack.md" target="_blank">Stack users</a> - Smuggler2 github doesn't have any documentation for stack users, hence I've create one
+- <a href="https://github.com/jrp2014/smuggler2/blob/master/README.md" target="_blank">Smuggler2 Doc</a>
