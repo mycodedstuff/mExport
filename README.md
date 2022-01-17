@@ -4,12 +4,12 @@
 ---
 ### Approach
 
-#### The idea is simple, mExport parses all the imports of all modules in an Haskell project. Using the import details it can curate a list of functions types, etc. required from a particular module.
+#### The idea is simple, mExport parses all the imports of all modules in an Haskell project. Using the import details it can curate a list of functions, types, etc. required from a particular module.
 ---
 ### Assumption
 
 #### The above approach works on the assumption that the modules of a Haskell project have correctly defined import including the functions, types, etc.
----
+
 ### Solution
 
 #### In case your Haskell project doesn't have good import statement with proper declaration of required functions, types, etc.
