@@ -19,7 +19,6 @@ prettyPrint config ast =
                    "\n" <>
                    indent <>
                    "( " <>
-                   (DT.intercalate ("\n" <> indent <> ", ") $
-                    DT.stripStart <$> (DT.splitOn "," $ DT.drop 1 (DT.take (DT.length code - 1) code))) <>
+                   (DT.intercalate ("\n" <> indent <> ",") $ DT.splitOn "," $ DT.drop 1 (DT.take (DT.length code - 1) code)) <>
                    "\n" <> indent <> ")"
               in finalCode

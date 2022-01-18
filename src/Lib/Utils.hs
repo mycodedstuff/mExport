@@ -49,4 +49,4 @@ writeExports moduleMap mainSrcDir = do
            moduleStart = DT.take mNameIndex moduleContent
            moduleRest = DT.drop (mWhereIndex + 5) moduleContent
            moduleExport = DM.fromMaybe "" $ HM.lookup moduleName moduleMap
-       TIO.writeFile modulePath (moduleStart <> " " <> moduleExport <> " where" <> moduleRest))
+       TIO.writeFile modulePath (moduleStart <> moduleExport <> " where" <> moduleRest))

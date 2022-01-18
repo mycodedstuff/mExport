@@ -51,7 +51,6 @@ traverseModules moduleMapRef mainSrcDir moduleSrc = do
                unless hiding $ DF.traverse_ (addExportSpec name) specs
              _ -> return ())
     importDecls
-  return ()
   where
     addExportSpec :: String -> H.ImportSpec H.SrcSpanInfo -> IO ()
     addExportSpec moduleName impSpec = do
