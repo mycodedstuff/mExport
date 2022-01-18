@@ -2,8 +2,8 @@ module Config where
 
 data Config =
   Config
-    { _data :: String
+    { _addExclamation :: Bool
     }
 
 getConfig :: Config
-getConfig = Config {_data = "Hello World"}
+getConfig = Config {_addExclamation = True}

@@ -16,7 +16,7 @@ main = do
   hspec $ do
     describe "Run mExport for the sample project" $ do
       it "returns valid Config exports" $ do HM.lookup "Config" exportMap `shouldBe` Just "(Config(..), getConfig)"
-      it "returns valid Utils exports" $ do HM.lookup "Utils" exportMap `shouldBe` Just "(printString)"
+      it "returns valid Utils exports" $ do HM.lookup "Utils" exportMap `shouldBe` Just "(printString, (>:>))"
 
 test :: IO (HM.HashMap String DT.Text)
 test = do
