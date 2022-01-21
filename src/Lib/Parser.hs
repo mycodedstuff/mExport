@@ -40,16 +40,16 @@ traverseModules moduleMapRef mainSrcDir moduleSrc = do
   let importDecls = SU.getImports _module
   DF.traverse_
     (\(H.ImportDecl _ (H.ModuleName _ name) _ _ _ _ _ specList) -> do
-       let impModuleSrc = SF.joinPath [mainSrcDir, ((U.moduleToPath name) <> ".hs") :: SF.FilePath]
        moduleMap <- DI.readIORef moduleMapRef
-       when (DM.isNothing $ HM.lookup name moduleMap) $ do
-         moduleExists <- SD.doesFileExist impModuleSrc -- TODO: Add options to show warning if module doesn't exist
-         when moduleExists $ do
-           traverseModules moduleMapRef mainSrcDir impModuleSrc
-           case specList of
-             Just (H.ImportSpecList _ hiding specs) -> do
-               unless hiding $ DF.traverse_ (addExportSpec name) specs
-             _ -> return ())
+       let impModuleSrc = SF.joinPath [mainSrcDir, ((U.moduleToPath name) <> ".hs") :: SF.FilePath]
+           isModuleVisited = DM.isJust $ HM.lookup name moduleMap
+       moduleExists <- SD.doesFileExist impModuleSrc -- TODO: Add options to show warning if module doesn't exist
+       when (not isModuleVisited && moduleExists) $ traverseModules moduleMapRef mainSrcDir impModuleSrc
+       when moduleExists $
+         case specList of
+           Just (H.ImportSpecList _ hiding specs) -> do
+             unless hiding $ DF.traverse_ (addExportSpec name) specs
+           _ -> return ())
     importDecls
   where
     addExportSpec :: String -> H.ImportSpec H.SrcSpanInfo -> IO ()
@@ -113,7 +113,7 @@ parseModuleContent moduleContent customExtensions = do
   _module <-
     case parsedModuleDeclE of
       Right _module -> return _module
-      _ -> error "XmlPage/XmlHybrid module types not supported"
+      Left err -> error $ "Exception: " <> show err
   return _module
 
 {-
