@@ -10,7 +10,8 @@ data Config =
     { codeStyle :: CodeStyle
     , writeOnFile :: Bool
     , singleListExport :: Bool
+    , projectPath :: String
     }
 
 getConfig :: Config
-getConfig = Config {codeStyle = CodeStyle {indent = 2}, writeOnFile = True, singleListExport = False}
+getConfig = Config {codeStyle = CodeStyle {indent = 2}, writeOnFile = True, singleListExport = False, projectPath = ""}

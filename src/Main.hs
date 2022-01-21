@@ -14,4 +14,4 @@ main = do
   action <- U.getAction CC.getConfig
   case action of
     T.ShowVersion -> putStrLn "mExport version 0.0.1"
-    T.Run config context -> void $ ME.mExport config context
+    T.Run config -> void $ ME.mExport config

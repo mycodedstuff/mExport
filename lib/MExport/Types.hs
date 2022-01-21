@@ -5,7 +5,16 @@ import qualified Language.Haskell.Exts as H
 
 type ModuleMap = DM.HashMap String (DM.HashMap String (H.ExportSpec H.SrcSpanInfo))
 
-data Context =
-  Context
-    { moduleSrc :: String
+data Module =
+  Module
+    { name :: Maybe String
+    , path :: String
     }
+  deriving (Show)
+
+data Project =
+  Project
+    { modules :: [Module]
+    , rootDir :: String
+    }
+  deriving (Show)

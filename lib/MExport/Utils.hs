@@ -2,18 +2,23 @@ module MExport.Utils
   ( moduleToPath
   , customExtensions
   , writeExports
+  , readProject
   ) where
 
 import Control.Monad
 import Prelude
 
 import qualified Data.HashMap.Strict as HM
+import qualified Data.List as DL
 import qualified Data.Maybe as DM
 import qualified Data.Text as DT
 import qualified Data.Text.IO as TIO
 import qualified Data.Text.Internal.Search as DTS
 import qualified Language.Haskell.Exts as H
+import qualified System.Directory as SD
 import qualified System.FilePath as SF
+
+import qualified MExport.Types as T
 
 moduleToPath :: String -> String
 moduleToPath =
@@ -50,3 +55,30 @@ writeExports moduleMap mainSrcDir = do
            moduleRest = DT.drop (mWhereIndex + 5) moduleContent
            moduleExport = DM.fromMaybe "" $ HM.lookup moduleName moduleMap
        TIO.writeFile modulePath (moduleStart <> moduleExport <> " where" <> moduleRest))
+
+readProject :: String -> IO T.Project
+readProject projectPath = do
+  pathIsDir <- SD.doesDirectoryExist projectPath
+  let rootDir =
+        if pathIsDir
+          then projectPath
+          else SF.takeDirectory projectPath
+  modules <- findModules rootDir
+  return $ T.Project modules rootDir
+  where
+    findModules :: String -> IO [T.Module]
+    findModules filePath = do
+      files <- listFiles filePath
+      hsFiles <- filterM SD.doesFileExist $ filter ((== ".hs") . SF.takeExtensions) files
+      return $ map (T.Module Nothing) hsFiles
+    listFiles :: String -> IO [String]
+    listFiles dirPath = do
+      dirContents <- return . filter (not . DL.isPrefixOf ".") =<< SD.listDirectory dirPath
+      return . DL.concat =<<
+        mapM
+          (\path -> do
+             dirExist <- SD.doesDirectoryExist path
+             if dirExist
+               then listFiles $ SF.joinPath [dirPath, path]
+               else return $ [SF.joinPath [dirPath, path]])
+          dirContents

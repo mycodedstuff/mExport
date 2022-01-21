@@ -12,18 +12,15 @@ import qualified Data.List as DL
 import qualified Data.Maybe as DM
 import qualified Language.Haskell.Exts as H
 import qualified Language.Haskell.Names.SyntaxUtils as SU
-import qualified System.Directory as SD
-import qualified System.FilePath as SF
 
 import qualified MExport.Config as CC
 import qualified MExport.Types as LT
 import qualified MExport.Utils as U
 
-parser :: CC.Config -> String -> IO (HM.HashMap String (H.ExportSpecList H.SrcSpanInfo))
-parser _ moduleSrc = do
-  let mainSrcDir = SF.takeDirectory moduleSrc
+parser :: CC.Config -> LT.Project -> IO (HM.HashMap String (H.ExportSpecList H.SrcSpanInfo))
+parser _ project = do
   moduleMapRef <- DI.newIORef (HM.empty :: LT.ModuleMap)
-  traverseModules moduleMapRef mainSrcDir moduleSrc
+  traverseModules moduleMapRef $ LT.modules project
   moduleMap <- DI.readIORef moduleMapRef
   return $ transform <$> moduleMap
 
@@ -33,24 +30,21 @@ dummySpanInfo = H.SrcSpanInfo {H.srcInfoSpan = H.SrcSpan "<interactive>" 0 0 0 0
 transform :: HM.HashMap String (H.ExportSpec H.SrcSpanInfo) -> H.ExportSpecList H.SrcSpanInfo
 transform specMap = H.ExportSpecList dummySpanInfo (HM.elems specMap)
 
-traverseModules :: DI.IORef LT.ModuleMap -> String -> String -> IO ()
-traverseModules moduleMapRef mainSrcDir moduleSrc = do
-  moduleContent <- readFile moduleSrc
-  _module <- parseModuleContent moduleContent U.customExtensions
-  let importDecls = SU.getImports _module
-  DF.traverse_
-    (\(H.ImportDecl _ (H.ModuleName _ name) _ _ _ _ _ specList) -> do
-       moduleMap <- DI.readIORef moduleMapRef
-       let impModuleSrc = SF.joinPath [mainSrcDir, ((U.moduleToPath name) <> ".hs") :: SF.FilePath]
-           isModuleVisited = DM.isJust $ HM.lookup name moduleMap
-       moduleExists <- SD.doesFileExist impModuleSrc -- TODO: Add options to show warning if module doesn't exist
-       when (not isModuleVisited && moduleExists) $ traverseModules moduleMapRef mainSrcDir impModuleSrc
-       when moduleExists $
-         case specList of
-           Just (H.ImportSpecList _ hiding specs) -> do
-             unless hiding $ DF.traverse_ (addExportSpec name) specs
-           _ -> return ())
-    importDecls
+traverseModules :: DI.IORef LT.ModuleMap -> [LT.Module] -> IO ()
+traverseModules moduleMapRef modules = do
+  forM_
+    modules
+    (\moduleT -> do
+       moduleContent <- readFile $ LT.path moduleT
+       _module <- parseModuleContent moduleContent U.customExtensions
+       let importDecls = SU.getImports _module
+       DF.traverse_
+         (\(H.ImportDecl _ (H.ModuleName _ name) _ _ _ _ _ specList) -> do
+            case specList of
+              Just (H.ImportSpecList _ hiding specs) -> do
+                unless hiding $ DF.traverse_ (addExportSpec name) specs
+              _ -> return ())
+         importDecls)
   where
     addExportSpec :: String -> H.ImportSpec H.SrcSpanInfo -> IO ()
     addExportSpec moduleName impSpec = do
