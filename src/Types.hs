@@ -1,7 +1,7 @@
 module Types where
 
-import qualified Lib.Config as CC (Config)
-import qualified Lib.Types as LT (Context)
+import qualified MExport.Config as CC (Config)
+import qualified MExport.Types as LT (Context)
 
 data Action
   = ShowVersion

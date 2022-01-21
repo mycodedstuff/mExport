@@ -1,4 +1,4 @@
-module Lib.Utils
+module MExport.Utils
   ( moduleToPath
   , customExtensions
   , writeExports

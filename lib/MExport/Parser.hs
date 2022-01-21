@@ -1,4 +1,4 @@
-module Lib.Parser
+module MExport.Parser
   ( parser
   ) where
 
@@ -15,9 +15,9 @@ import qualified Language.Haskell.Names.SyntaxUtils as SU
 import qualified System.Directory as SD
 import qualified System.FilePath as SF
 
-import qualified Lib.Config as CC
-import qualified Lib.Types as LT
-import qualified Lib.Utils as U
+import qualified MExport.Config as CC
+import qualified MExport.Types as LT
+import qualified MExport.Utils as U
 
 parser :: CC.Config -> String -> IO (HM.HashMap String (H.ExportSpecList H.SrcSpanInfo))
 parser _ moduleSrc = do

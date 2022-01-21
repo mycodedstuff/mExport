@@ -4,8 +4,8 @@ module Utils
 
 import Options.Applicative
 
-import qualified Lib.Config as CC
-import qualified Lib.Types as LT
+import qualified MExport.Config as CC
+import qualified MExport.Types as LT
 
 import qualified Types as T
 

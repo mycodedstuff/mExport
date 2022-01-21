@@ -1,4 +1,4 @@
-module Lib.Config where
+module MExport.Config where
 
 data CodeStyle =
   CodeStyle

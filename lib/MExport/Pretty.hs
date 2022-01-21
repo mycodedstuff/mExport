@@ -1,11 +1,11 @@
-module Lib.Pretty where
+module MExport.Pretty where
 
 import Prelude
 
 import qualified Data.Text as DT
 import qualified Language.Haskell.Exts as H
 
-import qualified Lib.Config as CC
+import qualified MExport.Config as CC
 
 prettyPrint :: CC.Config -> H.ExportSpecList H.SrcSpanInfo -> DT.Text
 prettyPrint config ast =

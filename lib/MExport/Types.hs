@@ -1,4 +1,4 @@
-module Lib.Types where
+module MExport.Types where
 
 import qualified Data.HashMap.Strict as DM
 import qualified Language.Haskell.Exts as H

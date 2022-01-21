@@ -1,4 +1,4 @@
-module Lib.MExport
+module MExport
   ( mExport
   ) where
 
@@ -9,11 +9,11 @@ import qualified Data.HashMap.Strict as HM
 import qualified Data.Text as DT
 import qualified System.FilePath as SF
 
-import qualified Lib.Config as CC
-import qualified Lib.Parser as LP
-import qualified Lib.Pretty as LP
-import qualified Lib.Types as LT
-import qualified Lib.Utils as LU
+import qualified MExport.Config as CC
+import qualified MExport.Parser as LP
+import qualified MExport.Pretty as LP
+import qualified MExport.Types as LT
+import qualified MExport.Utils as LU
 
 mExport :: CC.Config -> LT.Context -> IO (HM.HashMap String DT.Text)
 mExport config context = do

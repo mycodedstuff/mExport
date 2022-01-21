@@ -12,7 +12,7 @@ default-extensions:
   - LambdaCase
 
 library:
-  source-dirs: src
+  source-dirs: lib
   ghc-options:
     - -O2
     - -j4
@@ -41,6 +41,7 @@ executables:
       - filepath
       - haskell-names
       - haskell-src-exts
+      - mExport
       - optparse-applicative
       - text
       - unordered-containers
