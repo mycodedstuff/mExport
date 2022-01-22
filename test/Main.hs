@@ -8,17 +8,20 @@ import Test.Hspec
 
 import qualified MExport as ME (mExport)
 import qualified MExport.Config as CC (Config(..), getConfig)
+import qualified MExport.Types as MT
 
 main :: IO ()
 main = do
-  exportMap <- test
-  hspec $ do
-    describe "Run mExport for the sample project" $ do
-      it "returns valid Config exports" $ do
-        HM.lookup "Config" exportMap `shouldBe` Just "(Config(..), _addExclamation, getConfig)"
-      it "returns valid Utils exports" $ do HM.lookup "Utils" exportMap `shouldBe` Just "(printString, (>:>))"
+  project <- test
+  putStrLn $ show project
+  return ()
+  -- hspec $ do
+  --   describe "Run mExport for the sample project" $ do
+  --     it "returns valid Config exports" $ do
+  --       HM.lookup "Config" exportMap `shouldBe` Just "(Config(..), _addExclamation, getConfig)"
+  --     it "returns valid Utils exports" $ do HM.lookup "Utils" exportMap `shouldBe` Just "(printString, (>:>))"
 
-test :: IO (HM.HashMap String DT.Text)
+test :: IO (MT.Project MT.PrettyModule)
 test = do
   let config = CC.getConfig {CC.writeOnFile = False, CC.singleListExport = True, CC.projectPath = "./test/sample"}
   exportMap <- ME.mExport config

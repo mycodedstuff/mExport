@@ -11,7 +11,15 @@ data Config =
     , writeOnFile :: Bool
     , singleListExport :: Bool
     , projectPath :: String
+    , excludeDir :: [String]
     }
 
 getConfig :: Config
-getConfig = Config {codeStyle = CodeStyle {indent = 2}, writeOnFile = True, singleListExport = False, projectPath = ""}
+getConfig =
+  Config
+    { codeStyle = CodeStyle {indent = 2}
+    , writeOnFile = True
+    , singleListExport = False
+    , projectPath = ""
+    , excludeDir = [".stack-work", ".git"]
+    }

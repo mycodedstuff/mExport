@@ -7,7 +7,6 @@ import Prelude
 
 import qualified Data.Foldable as DF
 import qualified Data.HashMap.Strict as HM
-import qualified Data.IORef as DI
 import qualified Data.List as DL
 import qualified Data.Maybe as DM
 import qualified Language.Haskell.Exts as H
@@ -17,42 +16,53 @@ import qualified MExport.Config as CC
 import qualified MExport.Types as LT
 import qualified MExport.Utils as U
 
-parser :: CC.Config -> LT.Project -> IO (HM.HashMap String (H.ExportSpecList H.SrcSpanInfo))
-parser _ project = do
-  moduleMapRef <- DI.newIORef (HM.empty :: LT.ModuleMap)
-  traverseModules moduleMapRef $ LT.modules project
-  moduleMap <- DI.readIORef moduleMapRef
-  return $ transform <$> moduleMap
+parser :: CC.Config -> LT.State -> IO (LT.Project LT.Module)
+parser _ (LT.State rootDir modulePaths) = do
+  modules <- return . HM.elems =<< mapM transform =<< traverseModules modulePaths
+  putStrLn $ show modules
+  return $ LT.Project rootDir modules
 
 dummySpanInfo :: H.SrcSpanInfo
 dummySpanInfo = H.SrcSpanInfo {H.srcInfoSpan = H.SrcSpan "<interactive>" 0 0 0 0, H.srcInfoPoints = []}
 
-transform :: HM.HashMap String (H.ExportSpec H.SrcSpanInfo) -> H.ExportSpecList H.SrcSpanInfo
-transform specMap = H.ExportSpecList dummySpanInfo (HM.elems specMap)
+transform :: LT.MetaModule -> IO LT.Module
+transform (LT.MetaModule name (Just path) specMap) =
+  return $ LT.Module name path $ H.ExportSpecList dummySpanInfo $ HM.elems specMap
+transform (LT.MetaModule name _ _) = error $ "FilePath not found for module: " ++ name
 
-traverseModules :: DI.IORef LT.ModuleMap -> [LT.Module] -> IO ()
-traverseModules moduleMapRef modules = do
-  forM_
-    modules
-    (\moduleT -> do
-       moduleContent <- readFile $ LT.path moduleT
+traverseModules :: [String] -> IO (HM.HashMap String LT.MetaModule)
+traverseModules =
+  DF.foldlM
+    (\metaModules modulePath -> do
+       moduleContent <- readFile modulePath
        _module <- parseModuleContent moduleContent U.customExtensions
        let importDecls = SU.getImports _module
-       DF.traverse_
-         (\(H.ImportDecl _ (H.ModuleName _ name) _ _ _ _ _ specList) -> do
-            case specList of
-              Just (H.ImportSpecList _ hiding specs) -> do
-                unless hiding $ DF.traverse_ (addExportSpec name) specs
-              _ -> return ())
-         importDecls)
+           (H.ModuleName _ moduleName) = SU.getModuleName _module
+           metaModule =
+             DM.maybe
+               (LT.MetaModule moduleName (Just modulePath) HM.empty)
+               (\(LT.MetaModule name _ specMap) -> LT.MetaModule name (Just modulePath) specMap) $
+             HM.lookup moduleName metaModules
+           _metaModules = HM.insert moduleName metaModule metaModules
+       return $ DF.foldl parseImpDecl _metaModules importDecls)
+    HM.empty
   where
-    addExportSpec :: String -> H.ImportSpec H.SrcSpanInfo -> IO ()
-    addExportSpec moduleName impSpec = do
-      moduleMap <- DI.readIORef moduleMapRef
-      let specMap = DM.fromMaybe HM.empty $ HM.lookup moduleName moduleMap
+    addExportSpec :: LT.MetaModule -> H.ImportSpec H.SrcSpanInfo -> LT.MetaModule
+    addExportSpec metaModule impSpec = do
+      let specMap = LT.specMap metaModule
           exportSpec = mapImportToExportDecl impSpec
           idName = getIdentifier impSpec
-      DI.writeIORef moduleMapRef $ HM.insert moduleName (HM.insertWith getPreference idName exportSpec specMap) moduleMap
+          exportMap = HM.insertWith getPreference idName exportSpec specMap
+      metaModule {LT.specMap = exportMap}
+    parseImpDecl :: HM.HashMap String LT.MetaModule -> H.ImportDecl H.SrcSpanInfo -> HM.HashMap String LT.MetaModule
+    parseImpDecl metaModules (H.ImportDecl _ (H.ModuleName _ name) _ _ _ _ _ specList) = do
+      case specList of
+        Just (H.ImportSpecList _ hiding specs) -> do
+          let metaModule = DM.fromMaybe (LT.MetaModule name Nothing HM.empty) $ HM.lookup name metaModules
+          if hiding
+            then metaModules
+            else HM.insert name (DF.foldl addExportSpec metaModule specs) metaModules
+        _ -> metaModules
 
 mapImportToExportDecl :: H.ImportSpec H.SrcSpanInfo -> H.ExportSpec H.SrcSpanInfo
 mapImportToExportDecl =
