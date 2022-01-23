@@ -45,3 +45,8 @@ data MetaModule =
     , _specMap :: SpecMap
     }
   deriving (Show)
+
+-- PrettyState Brackets Spaces
+data PrettyState =
+  PrettyState DT.Text Int Int
+  deriving (Show)

@@ -2,6 +2,7 @@ module MExport.Pretty where
 
 import Prelude
 
+import qualified Data.List as DL
 import qualified Data.Text as DT
 import qualified Language.Haskell.Exts as H
 
@@ -26,13 +27,26 @@ prettifyModuleExports config project =
                        then MT.PrettyModule name path code
                        else let finalCode = formatExports indent code
                              in MT.PrettyModule name path finalCode
-    formatExports :: DT.Text -> DT.Text -> DT.Text
-    formatExports indent code =
-      let finalCode =
-            "\n" <>
-            indent <>
-            "( " <>
-            (DT.intercalate ("\n" <> indent <> ", ") $
-             (DT.replace "\n" "" . DT.stripStart) <$> (DT.splitOn "," $ DT.drop 1 (DT.take (DT.length code - 1) code))) <>
-            "\n" <> indent <> ")"
-       in finalCode
+
+formatExports :: DT.Text -> DT.Text -> DT.Text
+formatExports indent code =
+  let (MT.PrettyState finalCode _ _) =
+        DT.foldl
+          (\(MT.PrettyState fCode brac spaces) cur ->
+             let (str, _brac, _spaces) =
+                   case (brac, spaces, cur) of
+                     (_, 0, ' ') -> (" ", brac, spaces + 1)
+                     (_, i, ' ') -> ("", brac, spaces)
+                     (0, _, '(') -> ("\n" <> indent <> "( ", brac + 1, 0)
+                     (_, _, '(') -> ("(", brac + 1, 0)
+                     (1, _, ',') -> ("\n" <> indent <> ",", brac, 0)
+                     (2, _, ',') -> (",", brac, 0)
+                     (i, _, ',') -> ((DT.replicate (i + 1) indent) <> ",", brac, 0)
+                     (1, _, ')') -> ("\n" <> indent <> ")", brac - 1, 0)
+                     (_, _, ')') -> (")", brac - 1, 0)
+                     (_, _, '\n') -> ("", brac, 0)
+                     (_, _, x) -> (DT.pack [x], brac, 0)
+              in MT.PrettyState (fCode <> str) _brac _spaces)
+          (MT.PrettyState "" 0 0)
+          code
+   in finalCode
