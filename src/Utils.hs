@@ -14,5 +14,5 @@ getAction config =
 options :: CC.Config -> Parser T.Action
 options config = flag' T.ShowVersion (long "version" <> help "Print the version") <|> T.Run <$> (mkConfig <$> projectPath)
   where
-    projectPath = strOption (long "path" <> help "Path of Haskell project" <> metavar "DIR")
+    projectPath = strOption (long "path" <> help "Path of Haskell project" <> showDefault <> value "." <> metavar "DIR")
     mkConfig path = config {CC.projectPath = path}

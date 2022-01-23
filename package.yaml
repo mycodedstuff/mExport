@@ -23,7 +23,6 @@ library:
     - filepath
     - haskell-names
     - haskell-src-exts
-    - optparse-applicative
     - text
     - unordered-containers
 
@@ -37,14 +36,8 @@ executables:
       - -Wall
     dependencies:
       - base
-      - directory
-      - filepath
-      - haskell-names
-      - haskell-src-exts
       - mExport
       - optparse-applicative
-      - text
-      - unordered-containers
 
 tests:
   mexport-test:

@@ -18,7 +18,9 @@ import qualified MExport.Utils as U
 
 parser :: CC.Config -> LT.State -> IO (LT.Project LT.Module)
 parser _ (LT.State rootDir modulePaths) = do
-  modules <- return . HM.elems =<< mapM transform =<< traverseModules modulePaths
+  modules <-
+    return . HM.elems =<<
+    mapM transform =<< return . HM.filter (\(LT.MetaModule _ path _) -> DM.isJust path) =<< traverseModules modulePaths
   putStrLn $ show modules
   return $ LT.Project rootDir modules
 
@@ -34,6 +36,7 @@ traverseModules :: [String] -> IO (HM.HashMap String LT.MetaModule)
 traverseModules =
   DF.foldlM
     (\metaModules modulePath -> do
+       putStrLn $ "Parsing file: " ++ modulePath
        moduleContent <- readFile modulePath
        _module <- parseModuleContent moduleContent U.customExtensions
        let importDecls = SU.getImports _module
@@ -58,7 +61,7 @@ traverseModules =
     parseImpDecl metaModules (H.ImportDecl _ (H.ModuleName _ name) _ _ _ _ _ specList) = do
       case specList of
         Just (H.ImportSpecList _ hiding specs) -> do
-          let metaModule = DM.fromMaybe (LT.MetaModule name Nothing HM.empty) $ HM.lookup name metaModules
+          let metaModule = HM.lookupDefault (LT.MetaModule name Nothing HM.empty) name metaModules
           if hiding
             then metaModules
             else HM.insert name (DF.foldl addExportSpec metaModule specs) metaModules

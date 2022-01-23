@@ -73,8 +73,9 @@ findModules config projectPath = do
       return . DL.concat =<<
         mapM
           (\path -> do
-             dirExist <- SD.doesDirectoryExist path
+             let curPath = SF.joinPath [dirPath, path]
+             dirExist <- SD.doesDirectoryExist curPath
              if dirExist
-               then listFiles (SF.joinPath [dirPath, path]) excludeDir
-               else return $ [SF.joinPath [dirPath, path]])
+               then listFiles curPath excludeDir
+               else return [curPath])
           dirContents

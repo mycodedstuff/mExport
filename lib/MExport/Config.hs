@@ -20,6 +20,6 @@ getConfig =
     { codeStyle = CodeStyle {indent = 2}
     , writeOnFile = True
     , singleListExport = False
-    , projectPath = ""
+    , projectPath = "."
     , excludeDir = [".stack-work", ".git"]
     }
