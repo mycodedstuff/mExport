@@ -6,42 +6,42 @@ import qualified Language.Haskell.Exts as H
 
 type ModuleMap = HM.HashMap String Module
 
-type SpecMap = HM.HashMap String (H.ExportSpec H.SrcSpanInfo)
+type SpecMap = HM.HashMap String (H.ImportSpec H.SrcSpanInfo)
 
 data Project a =
   Project
-    { rootDir :: String
-    , modules :: [a]
+    { _rootDir :: String
+    , _modules :: [a]
     }
   deriving (Show)
 
 data Module =
   Module
-    { name :: String
-    , path :: String
-    , exportSpecs :: H.ExportSpecList H.SrcSpanInfo
+    { _name :: String
+    , _path :: String
+    , _exportSpecs :: H.ExportSpecList H.SrcSpanInfo
     }
   deriving (Show)
 
 data PrettyModule =
   PrettyModule
-    { name :: String
-    , path :: String
-    , exportList :: DT.Text
+    { _name :: String
+    , _path :: String
+    , _exportList :: DT.Text
     }
   deriving (Show)
 
 data State =
   State
-    { rootDir :: String
-    , modulePaths :: [String]
+    { _rootDir :: String
+    , _modulePaths :: [String]
     }
   deriving (Show)
 
 data MetaModule =
   MetaModule
-    { name :: String
-    , path :: Maybe String
-    , specMap :: SpecMap
+    { _name :: String
+    , _path :: Maybe String
+    , _specMap :: SpecMap
     }
   deriving (Show)

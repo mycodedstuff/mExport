@@ -7,9 +7,11 @@ default-extensions:
   - DeriveFunctor
   - DeriveGeneric
   - DuplicateRecordFields
+  - LambdaCase
   - OverloadedStrings
   - TypeApplications
-  - LambdaCase
+  - TemplateHaskell
+  - ViewPatterns
 
 library:
   source-dirs: lib
@@ -23,6 +25,7 @@ library:
     - filepath
     - haskell-names
     - haskell-src-exts
+    - lens
     - text
     - unordered-containers
 
@@ -49,5 +52,6 @@ tests:
       - base
       - hspec
       - mExport
+      - pretty-simple
       - text
       - unordered-containers

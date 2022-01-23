@@ -10,7 +10,7 @@ import qualified MExport.Types as MT
 
 prettifyModuleExports :: CC.Config -> (MT.Project MT.Module) -> [MT.PrettyModule]
 prettifyModuleExports config project =
-  let modules = MT.modules project
+  let modules = MT._modules project
       style = CC.codeStyle config
       singleListExport = CC.singleListExport config
       indent = CC.indent style

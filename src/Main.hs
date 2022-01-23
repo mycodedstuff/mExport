@@ -3,8 +3,8 @@ module Main where
 import Control.Monad
 import Prelude
 
-import qualified MExport.Config as CC
 import qualified MExport as ME
+import qualified MExport.Config as CC
 
 import qualified Types as T (Action(..))
 import qualified Utils as U

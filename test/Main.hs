@@ -5,6 +5,7 @@ import Control.Monad
 import qualified Data.HashMap.Strict as HM
 import qualified Data.Text as DT
 import Test.Hspec
+import qualified Text.Pretty.Simple as PS (pPrintNoColor)
 
 import qualified MExport as ME (mExport)
 import qualified MExport.Config as CC (Config(..), getConfig)
@@ -13,7 +14,8 @@ import qualified MExport.Types as MT
 main :: IO ()
 main = do
   project <- test
-  putStrLn $ show project
+  putStrLn "\nMExport result:"
+  PS.pPrintNoColor project
   return ()
   -- hspec $ do
   --   describe "Run mExport for the sample project" $ do

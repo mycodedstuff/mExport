@@ -5,10 +5,6 @@ module MExport
 import Control.Monad
 import Prelude
 
-import qualified Data.HashMap.Strict as HM
-import qualified Data.Text as DT
-import qualified Data.Maybe as DM
-
 import qualified MExport.Config as CC
 import qualified MExport.Parser as LP
 import qualified MExport.Pretty as LP
@@ -23,6 +19,7 @@ mExport config = do
   putStrLn $ "Found " ++ (show $ length modules) ++ " Haskell modules"
   let state = MT.State projectPath modules
   project <- LP.parser config state
+  putStrLn $ "Parsed all modules successfully!"
   let prettyModules = LP.prettifyModuleExports config project
-  when (CC.writeOnFile config) $ LU.writeExports prettyModules projectPath
+  when (CC.writeOnFile config) $ LU.writeExports prettyModules
   return $ MT.Project projectPath prettyModules

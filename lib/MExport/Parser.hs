@@ -2,6 +2,7 @@ module MExport.Parser
   ( parser
   ) where
 
+import Control.Lens ((^.))
 import Control.Monad
 import Prelude
 
@@ -12,24 +13,23 @@ import qualified Data.Maybe as DM
 import qualified Language.Haskell.Exts as H
 import qualified Language.Haskell.Names.SyntaxUtils as SU
 
+import qualified MExport.Accessor as MA
 import qualified MExport.Config as CC
 import qualified MExport.Types as LT
 import qualified MExport.Utils as U
 
 parser :: CC.Config -> LT.State -> IO (LT.Project LT.Module)
 parser _ (LT.State rootDir modulePaths) = do
-  modules <-
-    return . HM.elems =<<
-    mapM transform =<< return . HM.filter (\(LT.MetaModule _ path _) -> DM.isJust path) =<< traverseModules modulePaths
-  putStrLn $ show modules
-  return $ LT.Project rootDir modules
+  modules <- return . HM.elems =<< traverseModules modulePaths
+  projectModules <- mapM transform $ filter (DM.isJust . (^. MA.path)) modules
+  return $ LT.Project rootDir projectModules
 
 dummySpanInfo :: H.SrcSpanInfo
 dummySpanInfo = H.SrcSpanInfo {H.srcInfoSpan = H.SrcSpan "<interactive>" 0 0 0 0, H.srcInfoPoints = []}
 
 transform :: LT.MetaModule -> IO LT.Module
 transform (LT.MetaModule name (Just path) specMap) =
-  return $ LT.Module name path $ H.ExportSpecList dummySpanInfo $ HM.elems specMap
+  return $ LT.Module name path $ H.ExportSpecList dummySpanInfo $ mapImportToExportDecl <$> HM.elems specMap
 transform (LT.MetaModule name _ _) = error $ "FilePath not found for module: " ++ name
 
 traverseModules :: [String] -> IO (HM.HashMap String LT.MetaModule)
@@ -50,13 +50,12 @@ traverseModules =
        return $ DF.foldl parseImpDecl _metaModules importDecls)
     HM.empty
   where
-    addExportSpec :: LT.MetaModule -> H.ImportSpec H.SrcSpanInfo -> LT.MetaModule
-    addExportSpec metaModule impSpec = do
-      let specMap = LT.specMap metaModule
-          exportSpec = mapImportToExportDecl impSpec
+    addImportSpec :: LT.MetaModule -> H.ImportSpec H.SrcSpanInfo -> LT.MetaModule
+    addImportSpec metaModule impSpec = do
+      let specMap = metaModule ^. MA.specMap
           idName = getIdentifier impSpec
-          exportMap = HM.insertWith getPreference idName exportSpec specMap
-      metaModule {LT.specMap = exportMap}
+          exportMap = HM.insertWith getImpPreference idName impSpec specMap
+      metaModule {LT._specMap = exportMap}
     parseImpDecl :: HM.HashMap String LT.MetaModule -> H.ImportDecl H.SrcSpanInfo -> HM.HashMap String LT.MetaModule
     parseImpDecl metaModules (H.ImportDecl _ (H.ModuleName _ name) _ _ _ _ _ specList) = do
       case specList of
@@ -64,7 +63,7 @@ traverseModules =
           let metaModule = HM.lookupDefault (LT.MetaModule name Nothing HM.empty) name metaModules
           if hiding
             then metaModules
-            else HM.insert name (DF.foldl addExportSpec metaModule specs) metaModules
+            else HM.insert name (DF.foldl addImportSpec metaModule specs) metaModules
         _ -> metaModules
 
 mapImportToExportDecl :: H.ImportSpec H.SrcSpanInfo -> H.ExportSpec H.SrcSpanInfo
@@ -82,23 +81,32 @@ getIdentifier =
     (H.IAbs _ _ name) -> getName name
     (H.IThingWith _ name _) -> getName name
     (H.IThingAll _ name) -> getName name
-  where
-    getName :: H.Name H.SrcSpanInfo -> String
-    getName (H.Ident _ name) = name
-    getName (H.Symbol _ name) = name
 
-getPreference :: H.ExportSpec H.SrcSpanInfo -> H.ExportSpec H.SrcSpanInfo -> H.ExportSpec H.SrcSpanInfo
-getPreference x@(H.EModuleContents _ _) _ = x
-getPreference _ y@(H.EModuleContents _ _) = y
-getPreference x@(H.EThingWith l w q cName1) y@(H.EThingWith _ _ _ cName2) =
+getName :: H.Name H.SrcSpanInfo -> String
+getName (H.Ident _ name) = name
+getName (H.Symbol _ name) = name
+
+getImpPreference :: H.ImportSpec H.SrcSpanInfo -> H.ImportSpec H.SrcSpanInfo -> H.ImportSpec H.SrcSpanInfo
+getImpPreference (H.IVar _ _) y@(H.IAbs _ _ _) = y
+getImpPreference (H.IVar _ _) y@(H.IThingWith _ _ _) = y
+getImpPreference (H.IAbs _ _ _) y@(H.IThingWith _ _ _) = y
+getImpPreference x@(H.IThingWith l w cName1) y@(H.IThingWith _ _ cName2) =
   if null cName1
     then x
     else if null cName2
            then y
-           else H.EThingWith l w q $ DL.nub $ cName1 ++ cName2
-getPreference _ y@(H.EThingWith _ _ _ _) = y
-getPreference (H.EVar _ _) y@(H.EAbs _ _ _) = y
-getPreference x _ = x
+           else H.IThingWith l w $ DL.nubBy cNameComparator $ cName1 ++ cName2
+getImpPreference (H.IVar _ _) y@(H.IThingAll _ _) = y
+getImpPreference (H.IAbs _ _ _) y@(H.IThingAll _ _) = y
+getImpPreference (H.IThingWith _ _ _) y@(H.IThingAll _ _) = y
+getImpPreference x _ = x
+
+cNameComparator :: H.CName H.SrcSpanInfo -> H.CName H.SrcSpanInfo -> Bool
+cNameComparator (getCName -> cName1) (getCName -> cName2) = cName1 == cName2
+
+getCName :: H.CName H.SrcSpanInfo -> String
+getCName (H.VarName _ name) = getName name
+getCName (H.ConName _ name) = getName name
 
 {-
   Parses the module content provided in the first param @moduleContent@

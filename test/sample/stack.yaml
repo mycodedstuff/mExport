@@ -39,7 +39,9 @@ packages:
 # - git: https://github.com/commercialhaskell/stack.git
 #   commit: e7b331f14bcffb8367cd58fbfc8b40ec7642100a
 #
-# extra-deps: []
+extra-deps:
+  - smuggler2-0.3.6.2@sha256:743fb8982f90d8612db86ff01a76eaa008c261a8999c518e8cdb7ed720c38957,3943
+  - ghc-exactprint-0.6.4@sha256:51651c9491eae7a82e7623eb131c2a42a4b4e25d53e6ca4812aadec2cf32c947,9746
 
 # Override default flag values for local packages and extra-deps
 # flags: {}

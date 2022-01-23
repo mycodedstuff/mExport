@@ -1,7 +1,7 @@
 module Utils where
 
-import Config (Config(Config), _addExclamation, getConfig)
-import Prelude
+import Config ( Config(_addExclamation) )
+import Prelude ( IO, String, ($), (++), (.), putStrLn )
 
 printString :: Config -> String -> IO ()
 printString config str =

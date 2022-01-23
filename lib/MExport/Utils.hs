@@ -8,7 +8,6 @@ module MExport.Utils
 import Control.Monad
 import Prelude
 
-import qualified Data.HashMap.Strict as HM
 import qualified Data.List as DL
 import qualified Data.Maybe as DM
 import qualified Data.Text as DT
@@ -42,8 +41,8 @@ headMaybe arr =
 findFirstInText :: DT.Text -> DT.Text -> Maybe Int
 findFirstInText needle haystack = headMaybe $ DTS.indices needle haystack
 
-writeExports :: [T.PrettyModule] -> String -> IO ()
-writeExports modules mainSrcDir = do
+writeExports :: [T.PrettyModule] -> IO ()
+writeExports modules = do
   forM_
     modules
     (\(T.PrettyModule moduleName modulePath moduleExport) -> do
@@ -52,7 +51,9 @@ writeExports modules mainSrcDir = do
            mWhereIndex = (DM.fromMaybe ((length moduleName) + 8) $ findFirstInText "where" moduleContent)
            moduleStart = DT.take mNameIndex moduleContent
            moduleRest = DT.drop (mWhereIndex + 5) moduleContent
+       putStrLn $ "Writing exports to " ++ modulePath
        TIO.writeFile modulePath (moduleStart <> moduleExport <> " where" <> moduleRest))
+  putStrLn $ "Task completed!"
 
 findModules :: MC.Config -> String -> IO [String]
 findModules config projectPath = do
