@@ -14,8 +14,10 @@ getAction config =
 
 options :: CC.Config -> Parser T.Action
 options config =
-  flag' T.ShowVersion (long "version" <> help "Print the version") <|> T.Run <$> (mkConfig <$> projectPath <*> analyze)
+  flag' T.ShowVersion (long "version" <> help "Print the version") <|>
+  T.Run <$> (mkConfig <$> projectPath <*> analyze <*> ghcParser)
   where
     projectPath = strOption (long "path" <> help "Path of Haskell project" <> showDefault <> value "." <> metavar "DIR")
     analyze = switch (long "analyze" <> help "Analyze the Haskell project")
-    mkConfig path _analyze = config {CC.projectPath = path, CC.writeOnFile = not _analyze}
+    ghcParser = switch (long "ghc-parser" <> help "Use ghc-lib-parser instead of haskell-src-exts")
+    mkConfig path _analyze ghc = config {CC.projectPath = path, CC.writeOnFile = not _analyze, CC.useGhcParser = ghc}

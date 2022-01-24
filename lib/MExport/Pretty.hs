@@ -2,11 +2,13 @@ module MExport.Pretty where
 
 import Prelude
 
-import qualified Data.List as DL
 import qualified Data.Text as DT
 import qualified Language.Haskell.Exts as H
+import qualified Outputable as GHC
+import qualified SrcLoc as GHC
 
 import qualified MExport.Config as CC
+import qualified MExport.Ghc.Parser as GP
 import qualified MExport.Types as MT
 
 prettifyModuleExports :: CC.Config -> (MT.Project MT.Module) -> [MT.PrettyModule]
@@ -36,7 +38,7 @@ formatExports indent code =
              let (str, _brac, _spaces) =
                    case (brac, spaces, cur) of
                      (_, 0, ' ') -> (" ", brac, spaces + 1)
-                     (_, i, ' ') -> ("", brac, spaces)
+                     (_, _, ' ') -> ("", brac, spaces)
                      (0, _, '(') -> ("\n" <> indent <> "( ", brac + 1, 0)
                      (_, _, '(') -> ("(", brac + 1, 0)
                      (1, _, ',') -> ("\n" <> indent <> ",", brac, 0)
@@ -50,3 +52,27 @@ formatExports indent code =
           (MT.PrettyState "" 0 0)
           code
    in finalCode
+
+prettifyExports :: CC.Config -> MT.Project GP.Module -> [MT.PrettyModule]
+prettifyExports config project =
+  let modules = MT._modules project
+      style = CC.codeStyle config
+      singleListExport = CC.singleListExport config
+      indent = DT.replicate (CC.indent style) " "
+   in printExports indent singleListExport <$> modules
+  where
+    printExports :: DT.Text -> Bool -> GP.Module -> MT.PrettyModule
+    printExports indent singleListExport (GP.Module name path exportSpecs) =
+      if null $ GHC.unLoc exportSpecs
+        then MT.PrettyModule name path ""
+        else let code = DT.map replaceSqBrackets $ DT.pack $ GHC.showSDocUnsafe $ GHC.ppr exportSpecs
+              in if singleListExport
+                   then MT.PrettyModule name path code
+                   else let finalCode = formatExports indent code
+                         in MT.PrettyModule name path finalCode
+    replaceSqBrackets :: Char -> Char
+    replaceSqBrackets =
+      \case
+        '[' -> '('
+        ']' -> ')'
+        c -> c

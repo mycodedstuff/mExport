@@ -4,7 +4,7 @@ import Control.Monad
 
 import qualified Data.HashMap.Strict as HM
 import qualified Data.Text as DT
-import Test.Hspec
+-- import Test.Hspec
 import qualified Text.Pretty.Simple as PS (pPrintNoColor)
 
 import qualified MExport as ME (mExport)
@@ -25,7 +25,9 @@ main = do
 
 test :: IO (MT.Project MT.PrettyModule)
 test = do
-  let config = CC.getConfig {CC.writeOnFile = False, CC.singleListExport = True, CC.projectPath = "./test/sample"}
+  let config =
+        CC.getConfig
+          {CC.writeOnFile = False, CC.singleListExport = True, CC.projectPath = "./test/sample", CC.useGhcParser = True}
   exportMap <- ME.mExport config
   return exportMap
 

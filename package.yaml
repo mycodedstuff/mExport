@@ -23,6 +23,7 @@ library:
     - base
     - directory
     - filepath
+    - ghc-lib-parser
     - haskell-names
     - haskell-src-exts
     - lens
