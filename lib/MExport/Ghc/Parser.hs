@@ -23,7 +23,7 @@ import qualified HeaderInfo as GHC (getOptions)
 import qualified HscTypes as GHC (handleSourceError)
 import qualified Lexer as GHC (ParseResult(..), getErrorMessages, mkPState, unP)
 import qualified Module as GHC (moduleNameString)
-import qualified Outputable as GHC (OutputableBndr, showPpr)
+import qualified Outputable as GHC (OutputableBndr, ppr, showPpr, showSDocUnsafe)
 import qualified Panic as GHC (handleGhcException)
 import qualified Parser as GHC
 import PlatformConstants (PlatformConstants(..))
@@ -58,8 +58,11 @@ parser _ (MT.State rootDir modulePaths) = do
 
 transform :: MetaModule -> IO Module
 transform (MetaModule name (Just path) specMap) =
-  return $ Module name path $ GHC.L GHC.noSrcSpan $ (GHC.L GHC.noSrcSpan) <$> HM.elems specMap
+  return $ Module name path $ GHC.L GHC.noSrcSpan $ (GHC.L GHC.noSrcSpan) <$> (sortIEList $ HM.elems specMap)
 transform (MetaModule name _ _) = error $ "FilePath not found for module: " ++ name
+
+sortIEList :: [GHC.IE GHC.GhcPs] -> [GHC.IE GHC.GhcPs]
+sortIEList = DL.sortOn (GHC.showSDocUnsafe . GHC.ppr)
 
 traverseModules :: [String] -> IO (HM.HashMap String MetaModule)
 traverseModules =
@@ -120,14 +123,18 @@ getImpPreference dynFlags x@(GHC.IEThingWith l name w cName1 fld) y@(GHC.IEThing
     then x
     else if null cName2
            then y
-           else GHC.IEThingWith l name w (DL.nubBy (cNameComparator dynFlags) $ cName1 ++ cName2) fld
+           else GHC.IEThingWith l name w (mergeNames dynFlags cName1 cName2) fld
 getImpPreference _ (GHC.IEVar _ _) y@(GHC.IEThingAll _ _) = y
 getImpPreference _ (GHC.IEThingAbs _ _) y@(GHC.IEThingAll _ _) = y
 getImpPreference _ (GHC.IEThingWith _ _ _ _ _) y@(GHC.IEThingAll _ _) = y
 getImpPreference _ x _ = x
 
-cNameComparator :: GHC.OutputableBndr a => GHC.DynFlags -> GHC.LIEWrappedName a -> GHC.LIEWrappedName a -> Bool
-cNameComparator dynFlags cName1 cName2 = (toString cName1) == (toString cName2)
+mergeNames :: GHC.OutputableBndr a => GHC.DynFlags -> [GHC.LIEWrappedName a] -> [GHC.LIEWrappedName a] -> [GHC.LIEWrappedName a]
+mergeNames dynFlags name1 name2 =
+  DL.sortOn (GHC.showSDocUnsafe . GHC.ppr) . DL.nubBy (nameComparator dynFlags) $ name1 ++ name2
+
+nameComparator :: GHC.OutputableBndr a => GHC.DynFlags -> GHC.LIEWrappedName a -> GHC.LIEWrappedName a -> Bool
+nameComparator dynFlags name1 name2 = (toString name1) == (toString name2)
   where
     toString :: GHC.OutputableBndr a => GHC.LIEWrappedName a -> String
     toString = GHC.showPpr dynFlags . GHC.unLoc
