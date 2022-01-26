@@ -28,6 +28,7 @@ data PrettyModule =
     { _name :: String
     , _path :: String
     , _exportList :: DT.Text
+    , _exportCoords :: Maybe XCoord
     }
   deriving (Show)
 
@@ -49,4 +50,15 @@ data MetaModule =
 -- PrettyState Brackets Spaces
 data PrettyState =
   PrettyState DT.Text Int Int
+  deriving (Show)
+
+{- XCoord contains the line and column info of where Module name and where keyword ends
+   XCoord l1 c1 l2 c2
+   l1 -> Line where module name is present
+   c1 -> Column where module name ends
+   l2 -> Line at which where keyword is present
+   c2 -> Column at which where keyword ends
+-}
+data XCoord =
+  XCoord Int Int Int Int
   deriving (Show)

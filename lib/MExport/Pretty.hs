@@ -23,12 +23,12 @@ prettifyModuleExports config project =
     prettyPrintExports indent singleListExport (MT.Module name path exportSpecList) =
       let (H.ExportSpecList _ exportSpecs) = exportSpecList
        in if null exportSpecs
-            then MT.PrettyModule name path ""
+            then MT.PrettyModule name path "" Nothing
             else let code = DT.pack $ H.prettyPrint exportSpecList
                   in if singleListExport
-                       then MT.PrettyModule name path code
+                       then MT.PrettyModule name path code Nothing
                        else let finalCode = formatExports indent code
-                             in MT.PrettyModule name path finalCode
+                             in MT.PrettyModule name path finalCode Nothing
 
 formatExports :: DT.Text -> DT.Text -> DT.Text
 formatExports indent code =
@@ -39,7 +39,7 @@ formatExports indent code =
                    case (brac, spaces, cur) of
                      (_, 0, ' ') -> (" ", brac, spaces + 1)
                      (_, _, ' ') -> ("", brac, spaces)
-                     (0, _, '(') -> ("\n" <> indent <> "( ", brac + 1, 0)
+                     (0, _, '(') -> (indent <> "( ", brac + 1, 0)
                      (_, _, '(') -> ("(", brac + 1, 0)
                      (1, _, ',') -> ("\n" <> indent <> ",", brac, 0)
                      (2, _, ',') -> (",", brac, 0)
@@ -62,14 +62,14 @@ prettifyExports config project =
    in printExports indent singleListExport <$> modules
   where
     printExports :: DT.Text -> Bool -> GP.Module -> MT.PrettyModule
-    printExports indent singleListExport (GP.Module name path exportSpecs) =
+    printExports indent singleListExport (GP.Module name path coords exportSpecs) =
       if null $ GHC.unLoc exportSpecs
-        then MT.PrettyModule name path ""
+        then MT.PrettyModule name path "" coords
         else let code = DT.map replaceSqBrackets $ DT.pack $ GHC.showSDocUnsafe $ GHC.ppr exportSpecs
               in if singleListExport
-                   then MT.PrettyModule name path code
+                   then MT.PrettyModule name path code coords
                    else let finalCode = formatExports indent code
-                         in MT.PrettyModule name path finalCode
+                         in MT.PrettyModule name path finalCode coords
     replaceSqBrackets :: Char -> Char
     replaceSqBrackets =
       \case

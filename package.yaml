@@ -21,6 +21,7 @@ library:
     - -Wall
   dependencies:
     - base
+    - containers
     - directory
     - filepath
     - ghc-lib-parser

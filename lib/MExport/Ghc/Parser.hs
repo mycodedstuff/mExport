@@ -2,12 +2,14 @@
 
 module MExport.Ghc.Parser where
 
+import Control.Monad
 import qualified Data.Foldable as DF
 import qualified Data.HashMap.Strict as HM
 import qualified Data.List as DL
 import qualified Data.Maybe as DM
 import Prelude
 
+import qualified ApiAnnotation as GHC
 import qualified Bag as GHC (bagToList)
 import DynFlags (FileSettings(..), Settings(..), defaultDynFlags)
 import qualified DynFlags as GHC
@@ -21,13 +23,24 @@ import GHC.Version (cProjectVersion)
 import GhcNameVersion (GhcNameVersion(..))
 import qualified HeaderInfo as GHC (getOptions)
 import qualified HscTypes as GHC (handleSourceError)
-import qualified Lexer as GHC (ParseResult(..), getErrorMessages, mkPState, unP)
+import qualified Lexer as GHC (PState, ParseResult(..), annotations, getErrorMessages, mkPState, unP)
 import qualified Module as GHC (moduleNameString)
 import qualified Outputable as GHC (OutputableBndr, ppr, showPpr, showSDocUnsafe)
 import qualified Panic as GHC (handleGhcException)
 import qualified Parser as GHC
 import PlatformConstants (PlatformConstants(..))
-import qualified SrcLoc as GHC (GenLocated(..), Located, mkRealSrcLoc, noSrcSpan, unLoc)
+import qualified SrcLoc as GHC
+  ( GenLocated(..)
+  , Located
+  , SrcSpan(..)
+  , getLoc
+  , mkRealSrcLoc
+  , noSrcSpan
+  , realSrcSpanEnd
+  , srcLocCol
+  , srcLocLine
+  , unLoc
+  )
 import qualified StringBuffer as GHC (stringToStringBuffer)
 import qualified ToolSettings as GHC (ToolSettings(..))
 
@@ -38,17 +51,17 @@ data Module =
   Module
     { _name :: String
     , _modulePath :: String
+    , _exportCoords :: Maybe MT.XCoord
     , _exportSpecs :: GHC.Located [GHC.LIE GHC.GhcPs]
     }
-  -- deriving (Show)
 
 data MetaModule =
   MetaModule
     { _name :: String
     , _path :: Maybe String
     , _specMap :: HM.HashMap String (GHC.IE GHC.GhcPs)
+    , _xCoords :: Maybe MT.XCoord
     }
-  -- deriving (Show)
 
 parser :: MC.Config -> MT.State -> IO (MT.Project Module)
 parser _ (MT.State rootDir modulePaths) = do
@@ -57,9 +70,9 @@ parser _ (MT.State rootDir modulePaths) = do
   return $ MT.Project rootDir projectModules
 
 transform :: MetaModule -> IO Module
-transform (MetaModule name (Just path) specMap) =
-  return $ Module name path $ GHC.L GHC.noSrcSpan $ (GHC.L GHC.noSrcSpan) <$> (sortIEList $ HM.elems specMap)
-transform (MetaModule name _ _) = error $ "FilePath not found for module: " ++ name
+transform (MetaModule name (Just path) specMap coords) =
+  return $ Module name path coords $ GHC.L GHC.noSrcSpan $ (GHC.L GHC.noSrcSpan) <$> (sortIEList $ HM.elems specMap)
+transform (MetaModule name _ _ _) = error $ "FilePath not found for module: " ++ name
 
 sortIEList :: [GHC.IE GHC.GhcPs] -> [GHC.IE GHC.GhcPs]
 sortIEList = DL.sortOn (GHC.showSDocUnsafe . GHC.ppr)
@@ -70,14 +83,17 @@ traverseModules =
     (\metaModules modulePath -> do
        putStrLn $ "Parsing file: " ++ modulePath
        moduleContent <- readFile modulePath
-       (dynFlags, _module) <- parseModuleContent modulePath moduleContent customExtensions
+       (dynFlags, pState, _module) <- parseModuleContent modulePath moduleContent customExtensions
        let imports = GHC.unLoc <$> GHC.hsmodImports _module
+           srcSpan = DM.fromMaybe GHC.noSrcSpan $ GHC.getLoc <$> GHC.hsmodName _module
+           (_, [annSrcSpan]) = DL.head . DL.filter ((== GHC.AnnWhere) . snd . fst) $ GHC.annotations pState
+           coords = getXCoord srcSpan annSrcSpan
            moduleName =
              maybe "<interactive>" (\(GHC.L _ _moduleName) -> GHC.moduleNameString _moduleName) $ GHC.hsmodName _module
            metaModule =
              DM.maybe
-               (MetaModule moduleName (Just modulePath) HM.empty)
-               (\(MetaModule name _ specMap) -> MetaModule name (Just modulePath) specMap) $
+               (MetaModule moduleName (Just modulePath) HM.empty coords)
+               (\(MetaModule name _ specMap _) -> MetaModule name (Just modulePath) specMap coords) $
              HM.lookup moduleName metaModules
            _metaModules = HM.insert moduleName metaModule metaModules
        return $ DF.foldl (parseImpDecl dynFlags) _metaModules imports)
@@ -95,11 +111,19 @@ traverseModules =
           name = GHC.moduleNameString $ GHC.unLoc mName
       case specList of
         Just (hiding, GHC.unLoc -> specs) -> do
-          let metaModule = HM.lookupDefault (MetaModule name Nothing HM.empty) name metaModules
+          let metaModule = HM.lookupDefault (MetaModule name Nothing HM.empty Nothing) name metaModules
           if hiding
             then metaModules
             else HM.insert name (DF.foldl (addImportSpec dynFlags) metaModule specs) metaModules
         _ -> metaModules
+
+-- Takes SrcSpan of ModuleName and where keyword and returns XCoord
+getXCoord :: GHC.SrcSpan -> GHC.SrcSpan -> DM.Maybe MT.XCoord
+getXCoord (GHC.RealSrcSpan hSpan) (GHC.RealSrcSpan wSpan) =
+  let startSpan = GHC.realSrcSpanEnd hSpan
+      endSpan = GHC.realSrcSpanEnd wSpan
+   in Just $ MT.XCoord (GHC.srcLocLine startSpan) (GHC.srcLocCol startSpan) (GHC.srcLocLine endSpan) (GHC.srcLocCol endSpan)
+getXCoord _ _ = Nothing
 
 getIdentifier :: GHC.DynFlags -> GHC.IE GHC.GhcPs -> String
 getIdentifier dynFlags =
@@ -129,7 +153,8 @@ getImpPreference _ (GHC.IEThingAbs _ _) y@(GHC.IEThingAll _ _) = y
 getImpPreference _ (GHC.IEThingWith _ _ _ _ _) y@(GHC.IEThingAll _ _) = y
 getImpPreference _ x _ = x
 
-mergeNames :: GHC.OutputableBndr a => GHC.DynFlags -> [GHC.LIEWrappedName a] -> [GHC.LIEWrappedName a] -> [GHC.LIEWrappedName a]
+mergeNames ::
+     GHC.OutputableBndr a => GHC.DynFlags -> [GHC.LIEWrappedName a] -> [GHC.LIEWrappedName a] -> [GHC.LIEWrappedName a]
 mergeNames dynFlags name1 name2 =
   DL.sortOn (GHC.showSDocUnsafe . GHC.ppr) . DL.nubBy (nameComparator dynFlags) $ name1 ++ name2
 
@@ -139,14 +164,14 @@ nameComparator dynFlags name1 name2 = (toString name1) == (toString name2)
     toString :: GHC.OutputableBndr a => GHC.LIEWrappedName a -> String
     toString = GHC.showPpr dynFlags . GHC.unLoc
 
-parseModuleContent :: String -> String -> [GHC.Extension] -> IO (GHC.DynFlags, GHC.HsModule GHC.GhcPs)
+parseModuleContent :: String -> String -> [GHC.Extension] -> IO (GHC.DynFlags, GHC.PState, GHC.HsModule GHC.GhcPs)
 parseModuleContent modulePath moduleContent customExts = do
   dynFlags <- parsePragmasIntoDynFlags baseDynFlags customExts modulePath moduleContent
   case dynFlags of
     Right flags -> do
       let result = runParser flags modulePath moduleContent
       case result of
-        GHC.POk _ (GHC.L _ m) -> return (flags, m)
+        GHC.POk pState (GHC.L _ m) -> return (flags, pState, m)
         GHC.PFailed failureState ->
           error $
           "Exception: " ++

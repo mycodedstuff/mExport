@@ -14,6 +14,10 @@
 - Add option to check if exported types can be collapsed with (..), add a % value to when they should be
 
 #### Enhancements
-- Add better module header detection
 - Add support for line length in export formatter
 - Read available .gitignore to populate excludeDir config
+- While writing exports preserve comments written in between exports list
+
+#### Fixes
+- Handle case when where keyword isn't present Setup.hs
+- Fix case when two files with same module name are present in different dir
