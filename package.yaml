@@ -21,10 +21,10 @@ library:
     - -Wall
   dependencies:
     - base
+    - containers
     - directory
     - filepath
-    - haskell-names
-    - haskell-src-exts
+    - ghc-lib-parser
     - lens
     - text
     - unordered-containers

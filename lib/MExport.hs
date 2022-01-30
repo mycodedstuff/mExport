@@ -20,6 +20,6 @@ mExport config = do
   let state = MT.State projectPath modules
   project <- LP.parser config state
   putStrLn $ "Parsed all modules successfully!"
-  let prettyModules = LP.prettifyModuleExports config project
+  let prettyModules = LP.prettifyExports config project
   when (CC.writeOnFile config) $ LU.writeExports prettyModules
   return $ MT.Project projectPath prettyModules

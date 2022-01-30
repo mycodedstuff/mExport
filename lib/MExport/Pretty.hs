@@ -2,31 +2,36 @@ module MExport.Pretty where
 
 import Prelude
 
-import qualified Data.List as DL
 import qualified Data.Text as DT
-import qualified Language.Haskell.Exts as H
+import qualified Outputable as GHC (ppr, showSDocUnsafe)
+import qualified SrcLoc as GHC (unLoc)
 
 import qualified MExport.Config as CC
 import qualified MExport.Types as MT
 
-prettifyModuleExports :: CC.Config -> (MT.Project MT.Module) -> [MT.PrettyModule]
-prettifyModuleExports config project =
+prettifyExports :: CC.Config -> MT.Project MT.Module -> [MT.PrettyModule]
+prettifyExports config project =
   let modules = MT._modules project
       style = CC.codeStyle config
       singleListExport = CC.singleListExport config
-      indent = CC.indent style
-   in (prettyPrintExports (DT.replicate indent " ") singleListExport) <$> modules
+      indent = DT.replicate (CC.indent style) " "
+   in printExports indent singleListExport <$> modules
   where
-    prettyPrintExports :: DT.Text -> Bool -> MT.Module -> MT.PrettyModule
-    prettyPrintExports indent singleListExport (MT.Module name path exportSpecList) =
-      let (H.ExportSpecList _ exportSpecs) = exportSpecList
-       in if null exportSpecs
-            then MT.PrettyModule name path ""
-            else let code = DT.pack $ H.prettyPrint exportSpecList
-                  in if singleListExport
-                       then MT.PrettyModule name path code
-                       else let finalCode = formatExports indent code
-                             in MT.PrettyModule name path finalCode
+    printExports :: DT.Text -> Bool -> MT.Module -> MT.PrettyModule
+    printExports indent singleListExport (MT.Module name path coords exportSpecs) =
+      if null $ GHC.unLoc exportSpecs
+        then MT.PrettyModule name path "" coords
+        else let code = DT.map replaceSqBrackets $ DT.pack $ GHC.showSDocUnsafe $ GHC.ppr exportSpecs
+              in if singleListExport
+                   then MT.PrettyModule name path code coords
+                   else let finalCode = formatExports indent code
+                         in MT.PrettyModule name path finalCode coords
+    replaceSqBrackets :: Char -> Char
+    replaceSqBrackets =
+      \case
+        '[' -> '('
+        ']' -> ')'
+        c -> c
 
 formatExports :: DT.Text -> DT.Text -> DT.Text
 formatExports indent code =
@@ -36,8 +41,8 @@ formatExports indent code =
              let (str, _brac, _spaces) =
                    case (brac, spaces, cur) of
                      (_, 0, ' ') -> (" ", brac, spaces + 1)
-                     (_, i, ' ') -> ("", brac, spaces)
-                     (0, _, '(') -> ("\n" <> indent <> "( ", brac + 1, 0)
+                     (_, _, ' ') -> ("", brac, spaces)
+                     (0, _, '(') -> (indent <> "( ", brac + 1, 0)
                      (_, _, '(') -> ("(", brac + 1, 0)
                      (1, _, ',') -> ("\n" <> indent <> ",", brac, 0)
                      (2, _, ',') -> (",", brac, 0)
