@@ -17,6 +17,7 @@ import qualified DynFlags as GHC
 import qualified FastString as GHC (mkFastString)
 import GHC.Fingerprint (fingerprint0)
 import qualified GHC.Hs as GHC (GhcPs, HsModule, hsmodImports, hsmodName)
+import qualified GHC.Hs.Extension as GHC (noExtField)
 import qualified GHC.Hs.ImpExp as GHC
 import qualified GHC.LanguageExtensions.Type as GHC (Extension(..))
 import GHC.Platform
@@ -48,20 +49,33 @@ import qualified ToolSettings as GHC (ToolSettings(..))
 import qualified MExport.Accessor as MA
 import qualified MExport.Config as MC
 import qualified MExport.Types as MT
+import qualified MExport.Utils.Parser as UP
 
 parser :: MC.Config -> MT.State -> IO (MT.Project MT.Module)
-parser _ (MT.State rootDir modulePaths) = do
+parser config (MT.State rootDir modulePaths) = do
   metaModules <- return . HM.elems =<< traverseModules modulePaths
-  projectModules <- mapM transform $ filter (DM.isJust . (^. MA.path)) metaModules
+  projectModules <- mapM (transform config) $ filter (DM.isJust . (^. MA.path)) metaModules
   return $ MT.Project rootDir projectModules
 
-transform :: MT.MetaModule -> IO MT.Module
-transform (MT.MetaModule name (Just path) specMap coords) =
-  return $ MT.Module name path coords $ GHC.L GHC.noSrcSpan $ (GHC.L GHC.noSrcSpan) <$> (sortIEList $ HM.elems specMap)
-transform (MT.MetaModule name _ _ _) = error $ "FilePath not found for module: " ++ name
+transform :: MC.Config -> MT.MetaModule -> IO MT.Module
+transform config (MT.MetaModule name (Just path) specMap coords _module) = do
+  exportList <- mapM (reduceIE config _module) $ sortIEList $ HM.elems specMap
+  return $ MT.Module name path coords $ GHC.L GHC.noSrcSpan $ (GHC.L GHC.noSrcSpan) <$> exportList
+transform _ (MT.MetaModule name _ _ _ _) = error $ "FilePath not found for module: " ++ name
 
 sortIEList :: [GHC.IE GHC.GhcPs] -> [GHC.IE GHC.GhcPs]
 sortIEList = DL.sortOn (GHC.showSDocUnsafe . GHC.ppr)
+
+reduceIE :: MC.Config -> Maybe (GHC.HsModule GHC.GhcPs) -> GHC.IE GHC.GhcPs -> IO (GHC.IE GHC.GhcPs)
+reduceIE config (Just _module) ie@(GHC.IEThingWith _ name _ cNames _) = do
+  let typeName = GHC.showSDocUnsafe $ GHC.ppr name
+      exportedCount = 1 + DL.length cNames -- Counting the exported fields and constructors plus the data type
+      percentage = MC.collapseAfter $ MC.codeStyle config
+  exportableCount <- return . DM.fromMaybe 0 =<< UP.getExportableCount _module typeName
+  if exportedCount * 100 <= percentage * exportableCount
+    then return $ GHC.IEThingAll GHC.noExtField name
+    else return ie
+reduceIE _ _ x = return x
 
 traverseModules :: [String] -> IO (HM.HashMap String MT.MetaModule)
 traverseModules =
@@ -69,17 +83,18 @@ traverseModules =
     (\metaModules modulePath -> do
        putStrLn $ "Parsing file: " ++ modulePath
        moduleContent <- readFile modulePath
-       (dynFlags, pState, _module) <- parseModuleContent modulePath moduleContent customExtensions
+       (dynFlags, pState, _module) <- parseModuleContent modulePath moduleContent []
        let imports = GHC.unLoc <$> GHC.hsmodImports _module
            srcSpan = DM.fromMaybe GHC.noSrcSpan $ GHC.getLoc <$> GHC.hsmodName _module
-           (_, [annSrcSpan]) = DL.head . DL.filter ((== GHC.AnnWhere) . snd . fst) $ GHC.annotations pState
+           (_, srcSpanArr) = DL.head . DL.filter ((== GHC.AnnWhere) . snd . fst) $ GHC.annotations pState
+           annSrcSpan = DL.head srcSpanArr
            coords = getXCoord srcSpan annSrcSpan
            moduleName =
              maybe "<interactive>" (\(GHC.L _ _moduleName) -> GHC.moduleNameString _moduleName) $ GHC.hsmodName _module
            metaModule =
              DM.maybe
-               (MT.MetaModule moduleName (Just modulePath) HM.empty coords)
-               (\(MT.MetaModule name _ specMap _) -> MT.MetaModule name (Just modulePath) specMap coords) $
+               (MT.MetaModule moduleName (Just modulePath) HM.empty coords (Just _module))
+               (\(MT.MetaModule name _ specMap _ _) -> MT.MetaModule name (Just modulePath) specMap coords (Just _module)) $
              HM.lookup moduleName metaModules
            _metaModules = HM.insert moduleName metaModule metaModules
        return $ DF.foldl (parseImpDecl dynFlags) _metaModules imports)
@@ -91,16 +106,19 @@ traverseModules =
           idName = getIdentifier dynFlags impSpec
           exportMap = HM.insertWith (getImpPreference dynFlags) idName impSpec specMap
       metaModule {MT._specMap = exportMap}
-    parseImpDecl :: GHC.DynFlags -> HM.HashMap String MT.MetaModule -> GHC.ImportDecl GHC.GhcPs -> HM.HashMap String MT.MetaModule
+    parseImpDecl ::
+         GHC.DynFlags -> HM.HashMap String MT.MetaModule -> GHC.ImportDecl GHC.GhcPs -> HM.HashMap String MT.MetaModule
     parseImpDecl dynFlags metaModules importDecl = do
-      let (GHC.ImportDecl _ _ mName _ _ _ _ _ _ specList) = importDecl
-          name = GHC.moduleNameString $ GHC.unLoc mName
-      case specList of
-        Just (hiding, GHC.unLoc -> specs) -> do
-          let metaModule = HM.lookupDefault (MT.MetaModule name Nothing HM.empty Nothing) name metaModules
-          if hiding
-            then metaModules
-            else HM.insert name (DF.foldl (addImportSpec dynFlags) metaModule specs) metaModules
+      case importDecl of
+        GHC.ImportDecl _ _ mName _ _ _ _ _ _ specList -> do
+          let name = GHC.moduleNameString $ GHC.unLoc mName
+          case specList of
+            Just (hiding, GHC.unLoc -> specs) -> do
+              let metaModule = HM.lookupDefault (MT.MetaModule name Nothing HM.empty Nothing Nothing) name metaModules
+              if hiding
+                then metaModules
+                else HM.insert name (DF.foldl (addImportSpec dynFlags) metaModule specs) metaModules
+            _ -> metaModules
         _ -> metaModules
 
 -- Takes SrcSpan of ModuleName and where keyword and returns XCoord
@@ -204,34 +222,3 @@ baseDynFlags = defaultDynFlags fakeSettings llvmConfig
         , sRawSettings = []
         }
     llvmConfig = GHC.LlvmConfig [] []
-
-customExtensions :: [GHC.Extension]
-customExtensions =
-  [ GHC.BangPatterns
-  , GHC.ConstraintKinds
-  , GHC.DataKinds
-  , GHC.DefaultSignatures
-  , GHC.DeriveFunctor
-  , GHC.DeriveGeneric
-  , GHC.DuplicateRecordFields
-  , GHC.ExplicitNamespaces
-  , GHC.FlexibleContexts
-  , GHC.FlexibleInstances
-  , GHC.FunctionalDependencies
-  , GHC.GADTs
-  , GHC.LambdaCase
-  , GHC.MultiParamTypeClasses
-  , GHC.MultiWayIf
-  , GHC.OverloadedStrings
-  , GHC.PatternSynonyms
-  , GHC.PolyKinds
-  , GHC.RankNTypes
-  , GHC.RecordWildCards
-  , GHC.ScopedTypeVariables
-  , GHC.TupleSections
-  , GHC.TypeApplications
-  , GHC.TypeFamilies
-  , GHC.TypeOperators
-  , GHC.ViewPatterns
-  , GHC.BlockArguments
-  ]

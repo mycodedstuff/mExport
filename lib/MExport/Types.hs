@@ -2,7 +2,7 @@ module MExport.Types where
 
 import qualified Data.HashMap.Strict as HM
 import qualified Data.Text as DT
-import qualified GHC.Hs as GHC (GhcPs, IE, LIE)
+import qualified GHC.Hs as GHC (GhcPs, HsModule, IE, LIE)
 import qualified SrcLoc as GHC (Located)
 
 type ModuleMap = HM.HashMap String Module
@@ -30,6 +30,7 @@ data MetaModule =
     , _path :: Maybe String
     , _specMap :: SpecMap
     , _xCoords :: Maybe XCoord
+    , _parsedModule :: Maybe (GHC.HsModule GHC.GhcPs)
     }
 
 data PrettyModule =
