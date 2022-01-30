@@ -12,7 +12,6 @@ data Config =
     , singleListExport :: Bool
     , projectPath :: String
     , excludeDir :: [String]
-    , useGhcParser :: Bool
     }
 
 getConfig :: Config
@@ -23,5 +22,4 @@ getConfig =
     , singleListExport = False
     , projectPath = "."
     , excludeDir = [".stack-work", ".git"]
-    , useGhcParser = False
     }

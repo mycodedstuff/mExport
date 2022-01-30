@@ -1,6 +1,5 @@
 module MExport.Utils
   ( moduleToPath
-  , customExtensions
   , writeExports
   , findModules
   ) where
@@ -15,7 +14,6 @@ import qualified Data.Sequence as DS
 import qualified Data.Text as DT
 import qualified Data.Text.IO as TIO
 import qualified Data.Text.Internal.Search as DTS
-import qualified Language.Haskell.Exts as H
 import qualified System.Directory as SD
 import qualified System.FilePath as SF
 
@@ -29,10 +27,6 @@ moduleToPath =
        if c == '.'
          then '/'
          else c)
-
--- TODO: Add options to provide extensions
-customExtensions :: [H.Extension]
-customExtensions = map H.EnableExtension [H.TypeApplications]
 
 headMaybe :: [a] -> Maybe a
 headMaybe arr =

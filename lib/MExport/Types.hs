@@ -2,26 +2,35 @@ module MExport.Types where
 
 import qualified Data.HashMap.Strict as HM
 import qualified Data.Text as DT
-import qualified Language.Haskell.Exts as H
+import qualified GHC.Hs as GHC (GhcPs, IE, LIE)
+import qualified SrcLoc as GHC (Located)
 
 type ModuleMap = HM.HashMap String Module
 
-type SpecMap = HM.HashMap String (H.ImportSpec H.SrcSpanInfo)
+type SpecMap = HM.HashMap String (GHC.IE GHC.GhcPs)
 
 data Project a =
   Project
     { _rootDir :: String
     , _modules :: [a]
     }
-  deriving (Show)
+  deriving (Show, Eq)
 
 data Module =
   Module
     { _name :: String
-    , _path :: String
-    , _exportSpecs :: H.ExportSpecList H.SrcSpanInfo
+    , _modulePath :: String
+    , _exportCoords :: Maybe XCoord
+    , _exportSpecs :: GHC.Located [GHC.LIE GHC.GhcPs]
     }
-  deriving (Show)
+
+data MetaModule =
+  MetaModule
+    { _name :: String
+    , _path :: Maybe String
+    , _specMap :: SpecMap
+    , _xCoords :: Maybe XCoord
+    }
 
 data PrettyModule =
   PrettyModule
@@ -30,20 +39,12 @@ data PrettyModule =
     , _exportList :: DT.Text
     , _exportCoords :: Maybe XCoord
     }
-  deriving (Show)
+  deriving (Show, Eq)
 
 data State =
   State
     { _rootDir :: String
     , _modulePaths :: [String]
-    }
-  deriving (Show)
-
-data MetaModule =
-  MetaModule
-    { _name :: String
-    , _path :: Maybe String
-    , _specMap :: SpecMap
     }
   deriving (Show)
 
@@ -61,4 +62,4 @@ data PrettyState =
 -}
 data XCoord =
   XCoord Int Int Int Int
-  deriving (Show)
+  deriving (Show, Eq)
