@@ -13,7 +13,7 @@ jobs:
 
     steps:
     - name: Setup OS
-      run: apt-get update && apt-get -y install curl zstd
+      run: sudo apt-get update && sudo apt-get -y install curl zstd
     
     - uses: actions/checkout@v2
     
