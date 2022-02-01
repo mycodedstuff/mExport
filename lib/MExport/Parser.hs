@@ -18,7 +18,6 @@ import qualified FastString as GHC (mkFastString)
 import GHC.Fingerprint (fingerprint0)
 import qualified GHC.Hs as GHC (GhcPs, HsModule, hsmodImports, hsmodName)
 import qualified GHC.Hs.ImpExp as GHC
-import qualified GHC.LanguageExtensions.Type as GHC (Extension(..))
 import GHC.Platform
 import GHC.Version (cProjectVersion)
 import GhcNameVersion (GhcNameVersion(..))
@@ -50,8 +49,9 @@ import qualified MExport.Config as MC
 import qualified MExport.Types as MT
 
 parser :: MC.Config -> MT.State -> IO (MT.Project MT.Module)
-parser _ (MT.State rootDir modulePaths) = do
-  metaModules <- return . HM.elems =<< traverseModules modulePaths
+parser config (MT.State rootDir modulePaths) = do
+  let customExtensions = MC.extensions config
+  metaModules <- return . HM.elems =<< traverseModules customExtensions modulePaths
   projectModules <- mapM transform $ filter (DM.isJust . (^. MA.path)) metaModules
   return $ MT.Project rootDir projectModules
 
@@ -63,8 +63,8 @@ transform (MT.MetaModule name _ _ _) = error $ "FilePath not found for module: "
 sortIEList :: [GHC.IE GHC.GhcPs] -> [GHC.IE GHC.GhcPs]
 sortIEList = DL.sortOn (GHC.showSDocUnsafe . GHC.ppr)
 
-traverseModules :: [String] -> IO (HM.HashMap String MT.MetaModule)
-traverseModules =
+traverseModules :: [String] -> [String] -> IO (HM.HashMap String MT.MetaModule)
+traverseModules customExtensions =
   DF.foldlM
     (\metaModules modulePath -> do
        putStrLn $ "Parsing file: " ++ modulePath
@@ -91,7 +91,8 @@ traverseModules =
           idName = getIdentifier dynFlags impSpec
           exportMap = HM.insertWith (getImpPreference dynFlags) idName impSpec specMap
       metaModule {MT._specMap = exportMap}
-    parseImpDecl :: GHC.DynFlags -> HM.HashMap String MT.MetaModule -> GHC.ImportDecl GHC.GhcPs -> HM.HashMap String MT.MetaModule
+    parseImpDecl ::
+         GHC.DynFlags -> HM.HashMap String MT.MetaModule -> GHC.ImportDecl GHC.GhcPs -> HM.HashMap String MT.MetaModule
     parseImpDecl dynFlags metaModules importDecl = do
       let (GHC.ImportDecl _ _ mName _ _ _ _ _ _ specList) = importDecl
           name = GHC.moduleNameString $ GHC.unLoc mName
@@ -150,7 +151,7 @@ nameComparator dynFlags name1 name2 = (toString name1) == (toString name2)
     toString :: GHC.OutputableBndr a => GHC.LIEWrappedName a -> String
     toString = GHC.showPpr dynFlags . GHC.unLoc
 
-parseModuleContent :: String -> String -> [GHC.Extension] -> IO (GHC.DynFlags, GHC.PState, GHC.HsModule GHC.GhcPs)
+parseModuleContent :: String -> String -> [String] -> IO (GHC.DynFlags, GHC.PState, GHC.HsModule GHC.GhcPs)
 parseModuleContent modulePath moduleContent customExts = do
   dynFlags <- parsePragmasIntoDynFlags baseDynFlags customExts modulePath moduleContent
   case dynFlags of
@@ -170,12 +171,12 @@ runParser flags filePath str =
       parseState = GHC.mkPState flags (GHC.stringToStringBuffer str) (GHC.mkRealSrcLoc filename 1 1)
    in GHC.unP GHC.parseModule parseState
 
-parsePragmasIntoDynFlags :: GHC.DynFlags -> [GHC.Extension] -> FilePath -> String -> IO (Either String GHC.DynFlags)
+parsePragmasIntoDynFlags :: GHC.DynFlags -> [String] -> FilePath -> String -> IO (Either String GHC.DynFlags)
 parsePragmasIntoDynFlags flags customExts filepath str =
   catchErrors $ do
     let opts = GHC.getOptions flags (GHC.stringToStringBuffer str) filepath
-        flags' = foldl (\fl ex -> GHC.xopt_set fl ex) flags customExts
-    (parsedFlags, _invalidFlags, _warnings) <- GHC.parseDynamicFilePragma flags' opts
+        extOpts = map (\ext -> GHC.L GHC.noSrcSpan $ "-X" <> ext) customExts
+    (parsedFlags, _invalidFlags, _warnings) <- GHC.parseDynamicFilePragma flags (opts <> extOpts)
     return $ Right $ parsedFlags `GHC.gopt_set` GHC.Opt_KeepRawTokenStream
   where
     catchErrors act = GHC.handleGhcException reportErr (GHC.handleSourceError reportErr act)
@@ -204,34 +205,3 @@ baseDynFlags = defaultDynFlags fakeSettings llvmConfig
         , sRawSettings = []
         }
     llvmConfig = GHC.LlvmConfig [] []
-
-customExtensions :: [GHC.Extension]
-customExtensions =
-  [ GHC.BangPatterns
-  , GHC.ConstraintKinds
-  , GHC.DataKinds
-  , GHC.DefaultSignatures
-  , GHC.DeriveFunctor
-  , GHC.DeriveGeneric
-  , GHC.DuplicateRecordFields
-  , GHC.ExplicitNamespaces
-  , GHC.FlexibleContexts
-  , GHC.FlexibleInstances
-  , GHC.FunctionalDependencies
-  , GHC.GADTs
-  , GHC.LambdaCase
-  , GHC.MultiParamTypeClasses
-  , GHC.MultiWayIf
-  , GHC.OverloadedStrings
-  , GHC.PatternSynonyms
-  , GHC.PolyKinds
-  , GHC.RankNTypes
-  , GHC.RecordWildCards
-  , GHC.ScopedTypeVariables
-  , GHC.TupleSections
-  , GHC.TypeApplications
-  , GHC.TypeFamilies
-  , GHC.TypeOperators
-  , GHC.ViewPatterns
-  , GHC.BlockArguments
-  ]
