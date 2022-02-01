@@ -11,7 +11,6 @@
 #### Feature
 - Consider existing exports
 - Add ability to use yaml or json file for configuration
-- Add option to check if exported types can be collapsed with (..), add a % value to when they should be
 
 #### Enhancements
 - Add support for line length in export formatter

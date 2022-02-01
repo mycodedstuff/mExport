@@ -1,0 +1,45 @@
+name: Haskell CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Setup OS
+      run: apt-get update && apt-get -y install curl zstd
+    
+    - uses: actions/checkout@v2
+    
+    - name: Install Stack
+      run: curl -sSL https://get.haskellstack.org/ | sh
+    
+    - name: Install GHC
+      run: stack setup
+    
+    - name: Install dependencies
+      run: stack build --dependencies-only
+    
+    - name: Cache dependencies
+      uses: actions/cache@v2.1.7
+      env:
+        cache-name: cache-stack
+      with:
+        path: ~/.stack
+        key: ${{ runner.os }}-build-${{ env.cache-name }}-${{ hashFiles('stack.yaml') }}-${{ hashFiles('package.yaml') }} }}
+        restore-keys: |
+          ${{ runner.os }}-build-${{ env.cache-name }}-
+          ${{ runner.os }}-build-
+          ${{ runner.os }}-
+    
+    - name: Build
+      run: stack build
+    
+    - name: Run tests
+      run: stack test
