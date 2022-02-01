@@ -47,11 +47,12 @@ CLI Options:
 ```
 mExport - minimize export list of haskell modules
 
-Usage: mexport [--version | [--path DIR] [--analyze]]
+Usage: mexport [--version | [--path DIR] [--analyze] [--extensions GHCEXT]]
 
 Available options:
   --version                Print the version
   --path DIR               Path of Haskell project (default: ".")
   --analyze                Analyze the Haskell project
+  --extensions GHCEXT      Comma separated GHC Language extensions
   -h,--help                Show this help text
 ```
