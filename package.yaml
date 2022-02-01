@@ -42,6 +42,7 @@ executables:
       - base
       - mExport
       - optparse-applicative
+      - text
 
 tests:
   mexport-test:

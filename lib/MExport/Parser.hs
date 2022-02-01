@@ -19,7 +19,6 @@ import GHC.Fingerprint (fingerprint0)
 import qualified GHC.Hs as GHC (GhcPs, HsModule, hsmodImports, hsmodName)
 import qualified GHC.Hs.Extension as GHC (noExtField)
 import qualified GHC.Hs.ImpExp as GHC
-import qualified GHC.LanguageExtensions.Type as GHC (Extension(..))
 import GHC.Platform
 import GHC.Version (cProjectVersion)
 import GhcNameVersion (GhcNameVersion(..))
@@ -53,7 +52,8 @@ import qualified MExport.Utils.Parser as UP
 
 parser :: MC.Config -> MT.State -> IO (MT.Project MT.Module)
 parser config (MT.State rootDir modulePaths) = do
-  metaModules <- return . HM.elems =<< traverseModules modulePaths
+  let customExtensions = MC.extensions config
+  metaModules <- return . HM.elems =<< traverseModules customExtensions modulePaths
   projectModules <- mapM (transform config) $ filter (DM.isJust . (^. MA.path)) metaModules
   return $ MT.Project rootDir projectModules
 
@@ -77,13 +77,13 @@ reduceIE config (Just _module) ie@(GHC.IEThingWith _ name _ cNames _) = do
     else return ie
 reduceIE _ _ x = return x
 
-traverseModules :: [String] -> IO (HM.HashMap String MT.MetaModule)
-traverseModules =
+traverseModules :: [String] -> [String] -> IO (HM.HashMap String MT.MetaModule)
+traverseModules customExtensions =
   DF.foldlM
     (\metaModules modulePath -> do
        putStrLn $ "Parsing file: " ++ modulePath
        moduleContent <- readFile modulePath
-       (dynFlags, pState, _module) <- parseModuleContent modulePath moduleContent []
+       (dynFlags, pState, _module) <- parseModuleContent modulePath moduleContent customExtensions
        let imports = GHC.unLoc <$> GHC.hsmodImports _module
            srcSpan = DM.fromMaybe GHC.noSrcSpan $ GHC.getLoc <$> GHC.hsmodName _module
            (_, srcSpanArr) = DL.head . DL.filter ((== GHC.AnnWhere) . snd . fst) $ GHC.annotations pState
@@ -168,7 +168,7 @@ nameComparator dynFlags name1 name2 = (toString name1) == (toString name2)
     toString :: GHC.OutputableBndr a => GHC.LIEWrappedName a -> String
     toString = GHC.showPpr dynFlags . GHC.unLoc
 
-parseModuleContent :: String -> String -> [GHC.Extension] -> IO (GHC.DynFlags, GHC.PState, GHC.HsModule GHC.GhcPs)
+parseModuleContent :: String -> String -> [String] -> IO (GHC.DynFlags, GHC.PState, GHC.HsModule GHC.GhcPs)
 parseModuleContent modulePath moduleContent customExts = do
   dynFlags <- parsePragmasIntoDynFlags baseDynFlags customExts modulePath moduleContent
   case dynFlags of
@@ -188,12 +188,12 @@ runParser flags filePath str =
       parseState = GHC.mkPState flags (GHC.stringToStringBuffer str) (GHC.mkRealSrcLoc filename 1 1)
    in GHC.unP GHC.parseModule parseState
 
-parsePragmasIntoDynFlags :: GHC.DynFlags -> [GHC.Extension] -> FilePath -> String -> IO (Either String GHC.DynFlags)
+parsePragmasIntoDynFlags :: GHC.DynFlags -> [String] -> FilePath -> String -> IO (Either String GHC.DynFlags)
 parsePragmasIntoDynFlags flags customExts filepath str =
   catchErrors $ do
     let opts = GHC.getOptions flags (GHC.stringToStringBuffer str) filepath
-        flags' = foldl (\fl ex -> GHC.xopt_set fl ex) flags customExts
-    (parsedFlags, _invalidFlags, _warnings) <- GHC.parseDynamicFilePragma flags' opts
+        extOpts = map (\ext -> GHC.L GHC.noSrcSpan $ "-X" <> ext) customExts
+    (parsedFlags, _invalidFlags, _warnings) <- GHC.parseDynamicFilePragma flags (opts <> extOpts)
     return $ Right $ parsedFlags `GHC.gopt_set` GHC.Opt_KeepRawTokenStream
   where
     catchErrors act = GHC.handleGhcException reportErr (GHC.handleSourceError reportErr act)
