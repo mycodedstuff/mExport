@@ -1,7 +1,7 @@
 # <image src="https://wiki.haskell.org/wikistatic/haskellwiki_logo.png?e89e3" width=33> MExport
 [![MPL-2.0 license](https://img.shields.io/badge/license-MPL--2.0-blue.svg)](https://github.com/mycodedstuff/mExport/blob/master/LICENSE)
 ![Version](https://img.shields.io/badge/version-v0.0.1-blue)
-![Workflow status](https://github.com/github/docs/actions/workflows/main.yml/badge.svg)
+[![Haskell CI](https://github.com/mycodedstuff/mExport/actions/workflows/haskell.yaml/badge.svg)](https://github.com/mycodedstuff/mExport/actions/workflows/haskell.yaml)
 ![GHC Version](https://img.shields.io/badge/ghc-v8.10.7-brightgreen)
 ![Last Commit](https://img.shields.io/github/last-commit/mycodedstuff/mExport/main)
 
