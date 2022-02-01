@@ -20,12 +20,6 @@ jobs:
     - name: Install Stack
       run: if [ -z $(which stack) ]; then curl -sSL https://get.haskellstack.org/ | sh; fi
     
-    - name: Install GHC
-      run: stack setup
-    
-    - name: Install dependencies
-      run: stack build --dependencies-only
-    
     - name: Cache dependencies
       uses: actions/cache@v2.1.7
       env:
@@ -37,6 +31,12 @@ jobs:
           ${{ runner.os }}-build-${{ env.cache-name }}-
           ${{ runner.os }}-build-
           ${{ runner.os }}-
+    
+    - name: Install GHC
+      run: stack setup
+    
+    - name: Install dependencies
+      run: stack build --dependencies-only
     
     - name: Build
       run: stack build
