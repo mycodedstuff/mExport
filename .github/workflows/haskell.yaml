@@ -18,7 +18,7 @@ jobs:
     - uses: actions/checkout@v2
     
     - name: Install Stack
-      run: curl -sSL https://get.haskellstack.org/ | sh
+      run: if [ -z $(which stack) ]; then curl -sSL https://get.haskellstack.org/ | sh; fi
     
     - name: Install GHC
       run: stack setup
