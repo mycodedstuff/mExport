@@ -12,6 +12,7 @@ data Config =
     , singleListExport :: Bool
     , projectPath :: String
     , excludeDir :: [String]
+    , extensions :: [String]
     }
 
 getConfig :: Config
@@ -22,4 +23,5 @@ getConfig =
     , singleListExport = False
     , projectPath = "."
     , excludeDir = [".stack-work", ".git"]
+    , extensions = []
     }

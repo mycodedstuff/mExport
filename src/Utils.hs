@@ -5,6 +5,8 @@ module Utils
 import Options.Applicative
 import Prelude
 
+import qualified Data.Text as DT
+
 import qualified MExport.Config as CC
 import qualified Types as T
 
@@ -14,8 +16,13 @@ getAction config =
 
 options :: CC.Config -> Parser T.Action
 options config =
-  flag' T.ShowVersion (long "version" <> help "Print the version") <|> T.Run <$> (mkConfig <$> projectPath <*> analyze)
+  flag' T.ShowVersion (long "version" <> help "Print the version") <|>
+  T.Run <$> (mkConfig <$> projectPath <*> analyze <*> customExtensions)
   where
     projectPath = strOption (long "path" <> help "Path of Haskell project" <> showDefault <> value "." <> metavar "DIR")
     analyze = switch (long "analyze" <> help "Analyze the Haskell project")
-    mkConfig path _analyze = config {CC.projectPath = path, CC.writeOnFile = not _analyze}
+    customExtensions =
+      strOption (long "extensions" <> help "Comma separated GHC Language extensions" <> value [] <> metavar "GHCEXT")
+    mkExtensions strExts = DT.unpack <$> (DT.splitOn "," $ DT.pack strExts)
+    mkConfig path _analyze extensions =
+      config {CC.projectPath = path, CC.writeOnFile = not _analyze, CC.extensions = mkExtensions extensions}
