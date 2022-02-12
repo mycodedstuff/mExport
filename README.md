@@ -13,32 +13,39 @@ The idea is simple, mExport parses all the imports of all modules in an Haskell 
 
 ## Prepare your project
 To get the best results you can do the following:
+
 You can add the below ghc-options to your project to dump the minimal imports which can be used by mExport.
-```
+```yaml
 ghc-options:
   - -ddump-minimal-imports
 ```
-GHC will dump the minimal imports into a directory which is required by mExport. You can change the dump directory by adding the following ghc-options.
-```
+GHC will dump the minimal imports into a directory which is required by mExport. 
+
+Currently mExport doesn't detect the dump directory hence it requires this to be specified via `--dump-dir`.
+
+Incase you don't know the default dump dir you can also change the dump directory by adding the following ghc-options.
+```yaml
 ghc-options:
   - -dumpdir /foo/bar
 ```
 Then the dump directory path can be given to mExport
-```
+```shell
 mexport --dump-dir /foo/bar
 ```
 ### Note: After changing the ghc-options you should do a clean build
-```
+```shell
 stack purge
 stack build
 ```
 
-## How to build
-Steps:
-- Clone the repository `git clone https://github.com/mycodedstuff/mExport`
-- This project uses stack, hence you can run `stack install` inside the repo directory
-- Now `mexport` command should be available
-
+## How to install from source
+Commands:
+```shell
+git clone https://github.com/mycodedstuff/mExport
+cd mExport
+stack install
+mexport --help
+```
 Note: If you don't have ghc 8.10.7 installed it will install it which may take more time.
 
 If you don't have stack then check: [Install Stack](https://docs.haskellstack.org/en/stable/install_and_upgrade/)
@@ -50,7 +57,7 @@ Simply run `mexport` in your project directory
 For cli options run `mexport --help`
 
 CLI Options:
-```
+```shell
 mExport - minimize export list of haskell modules
 
 Usage: mexport [--version | [--path DIR] [--analyze] [--extensions GHCEXT] [--dump-dir DIR]]
