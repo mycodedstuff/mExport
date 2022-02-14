@@ -9,6 +9,8 @@ import qualified Data.HashMap.Strict as HM
 import qualified Data.List as DL
 import qualified Data.Maybe as DM
 import Prelude
+import qualified System.Directory as SD
+import qualified System.FilePath as SF
 
 import qualified ApiAnnotation as GHC
 import qualified Bag as GHC (bagToList)
@@ -51,7 +53,8 @@ import qualified MExport.Types as MT
 parser :: MC.Config -> MT.State -> IO (MT.Project MT.Module)
 parser config (MT.State rootDir modulePaths) = do
   let customExtensions = MC.extensions config
-  metaModules <- return . HM.elems =<< traverseModules customExtensions modulePaths
+      maybeDumpDir = MC.dumpDir config
+  metaModules <- return . HM.elems =<< traverseModules customExtensions maybeDumpDir modulePaths
   projectModules <- mapM transform $ filter (DM.isJust . (^. MA.path)) metaModules
   return $ MT.Project rootDir projectModules
 
@@ -63,15 +66,14 @@ transform (MT.MetaModule name _ _ _) = error $ "FilePath not found for module: "
 sortIEList :: [GHC.IE GHC.GhcPs] -> [GHC.IE GHC.GhcPs]
 sortIEList = DL.sortOn (GHC.showSDocUnsafe . GHC.ppr)
 
-traverseModules :: [String] -> [String] -> IO (HM.HashMap String MT.MetaModule)
-traverseModules customExtensions =
+traverseModules :: [String] -> Maybe String -> [String] -> IO (HM.HashMap String MT.MetaModule)
+traverseModules customExtensions maybeDumpDir =
   DF.foldlM
     (\metaModules modulePath -> do
        putStrLn $ "Parsing file: " ++ modulePath
        moduleContent <- readFile modulePath
        (dynFlags, pState, _module) <- parseModuleContent modulePath moduleContent customExtensions
-       let imports = GHC.unLoc <$> GHC.hsmodImports _module
-           srcSpan = DM.fromMaybe GHC.noSrcSpan $ GHC.getLoc <$> GHC.hsmodName _module
+       let srcSpan = DM.fromMaybe GHC.noSrcSpan $ GHC.getLoc <$> GHC.hsmodName _module
            (_, [annSrcSpan]) = DL.head . DL.filter ((== GHC.AnnWhere) . snd . fst) $ GHC.annotations pState
            coords = getXCoord srcSpan annSrcSpan
            moduleName =
@@ -82,7 +84,12 @@ traverseModules customExtensions =
                (\(MT.MetaModule name _ specMap _) -> MT.MetaModule name (Just modulePath) specMap coords) $
              HM.lookup moduleName metaModules
            _metaModules = HM.insert moduleName metaModule metaModules
-       return $ DF.foldl (parseImpDecl dynFlags) _metaModules imports)
+       minimalImports <- findMinimalImport maybeDumpDir moduleName
+       let moduleImports =
+             if null minimalImports
+               then GHC.unLoc <$> GHC.hsmodImports _module
+               else minimalImports
+       return $ DF.foldl (parseImpDecl dynFlags) _metaModules moduleImports)
     HM.empty
   where
     addImportSpec :: GHC.DynFlags -> MT.MetaModule -> GHC.LIE GHC.GhcPs -> MT.MetaModule
@@ -103,6 +110,19 @@ traverseModules customExtensions =
             then metaModules
             else HM.insert name (DF.foldl (addImportSpec dynFlags) metaModule specs) metaModules
         _ -> metaModules
+
+findMinimalImport :: Maybe String -> String -> IO [GHC.ImportDecl GHC.GhcPs]
+findMinimalImport (Just dumpDir) moduleName = do
+  let importFile = dumpDir SF.</> moduleName <> ".imports"
+  fileExist <- SD.doesFileExist importFile
+  if fileExist
+    then do
+      putStrLn $ "Using import dump file " ++ importFile
+      importContent <- readFile importFile
+      (_, _, _module) <- parseModuleContent importFile importContent []
+      return $ GHC.unLoc <$> GHC.hsmodImports _module
+    else putStrLn ("Import dump file not available: " ++ importFile) *> return []
+findMinimalImport Nothing _ = return []
 
 -- Takes SrcSpan of ModuleName and where keyword and returns XCoord
 getXCoord :: GHC.SrcSpan -> GHC.SrcSpan -> DM.Maybe MT.XCoord
