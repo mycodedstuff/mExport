@@ -9,7 +9,7 @@ import Test.Hspec
 import qualified Text.Pretty.Simple as PS (pPrintNoColor)
 
 import qualified MExport as ME (mExport)
-import qualified MExport.Config as CC (Config(..), getConfig)
+import qualified MExport.Config as CC (Config(..), defaultConfig)
 import qualified MExport.Types as MT
 
 main :: IO ()
@@ -22,7 +22,7 @@ main = do
 
 test :: IO (MT.Project MT.PrettyModule)
 test = do
-  let config = CC.getConfig {CC.writeOnFile = False, CC.singleListExport = True, CC.projectPath = "./test/sample"}
+  let config = CC.defaultConfig {CC.writeOnFile = False, CC.singleListExport = True, CC.projectPath = "./test/sample"}
   exportMap <- ME.mExport config
   return exportMap
 
