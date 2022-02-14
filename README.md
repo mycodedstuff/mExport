@@ -60,13 +60,17 @@ CLI Options:
 ```shell
 mExport - minimize export list of haskell modules
 
-Usage: mexport [--version | [--path DIR] [--analyze] [--extensions GHCEXT] [--dump-dir DIR]]
+Usage: mexport [--version | [--path DIR] [--analyze] [--extensions GHCEXT] [--dump-dir DIR] [--indent NUM] [--collapse NUM]]
 
 Available options:
   --version                Print the version
   --path DIR               Path of Haskell project (default: ".")
-  --analyze                Analyze the Haskell project
+  --analyze                Analyze the Haskell project, helps in verifying if
+                           project can be parsed
   --extensions GHCEXT      Comma separated GHC Language extensions
   --dump-dir DIR           GHC dump directory path
+  --indent NUM             Indentation for the exports (default: 2)
+  --collapse NUM           Exports everything of a type if NUM or more
+                           percentage is exported (default: 100)
   -h,--help                Show this help text
 ```

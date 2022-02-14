@@ -12,13 +12,18 @@ default-extensions:
   - TypeApplications
   - TemplateHaskell
   - ViewPatterns
+  - FlexibleContexts
+
+ghc-options:
+  - -O2
+  - -j4
+  - -Wall
+  - -Wredundant-constraints
+  - -Wincomplete-record-updates
+  - -Wincomplete-uni-patterns
 
 library:
   source-dirs: lib
-  ghc-options:
-    - -O2
-    - -j4
-    - -Wall
   dependencies:
     - base
     - containers
@@ -33,10 +38,6 @@ executables:
   mexport:
     main: Main.hs
     source-dirs: src
-    ghc-options:
-      - -O2
-      - -j4
-      - -Wall
     dependencies:
       - base
       - mExport
@@ -47,8 +48,6 @@ tests:
   mexport-test:
     main: Main.hs
     source-dirs: test
-    ghc-options:
-      - -Wall
     dependencies:
       - base
       - hspec

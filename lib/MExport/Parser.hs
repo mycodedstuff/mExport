@@ -19,6 +19,7 @@ import qualified DynFlags as GHC
 import qualified FastString as GHC (mkFastString)
 import GHC.Fingerprint (fingerprint0)
 import qualified GHC.Hs as GHC (GhcPs, HsModule, hsmodImports, hsmodName)
+import qualified GHC.Hs.Extension as GHC (noExtField)
 import qualified GHC.Hs.ImpExp as GHC
 import GHC.Platform
 import GHC.Version (cProjectVersion)
@@ -49,22 +50,38 @@ import qualified ToolSettings as GHC (ToolSettings(..))
 import qualified MExport.Accessor as MA
 import qualified MExport.Config as MC
 import qualified MExport.Types as MT
+import qualified MExport.Utils.Parser as UP
 
 parser :: MC.Config -> MT.State -> IO (MT.Project MT.Module)
 parser config (MT.State rootDir modulePaths) = do
   let customExtensions = MC.extensions config
       maybeDumpDir = MC.dumpDir config
   metaModules <- return . HM.elems =<< traverseModules customExtensions maybeDumpDir modulePaths
-  projectModules <- mapM transform $ filter (DM.isJust . (^. MA.path)) metaModules
+  projectModules <- mapM (transform config) $ filter (DM.isJust . (^. MA.path)) metaModules
   return $ MT.Project rootDir projectModules
 
-transform :: MT.MetaModule -> IO MT.Module
-transform (MT.MetaModule name (Just path) specMap coords) =
-  return $ MT.Module name path coords $ GHC.L GHC.noSrcSpan $ (GHC.L GHC.noSrcSpan) <$> (sortIEList $ HM.elems specMap)
-transform (MT.MetaModule name _ _ _) = error $ "FilePath not found for module: " ++ name
+transform :: MC.Config -> MT.MetaModule -> IO MT.Module
+transform config (MT.MetaModule name (Just path) specMap coords _module) = do
+  exportList <- mapM (reduceIE config _module) $ sortIEList $ HM.elems specMap
+  return $ MT.Module name path coords $ GHC.L GHC.noSrcSpan $ (GHC.L GHC.noSrcSpan) <$> exportList
+transform _ (MT.MetaModule name _ _ _ _) = error $ "FilePath not found for module: " ++ name
 
 sortIEList :: [GHC.IE GHC.GhcPs] -> [GHC.IE GHC.GhcPs]
 sortIEList = DL.sortOn (GHC.showSDocUnsafe . GHC.ppr)
+
+reduceIE :: MC.Config -> Maybe (GHC.HsModule GHC.GhcPs) -> GHC.IE GHC.GhcPs -> IO (GHC.IE GHC.GhcPs)
+reduceIE config (Just _module) ie@(GHC.IEThingWith _ name _ cNames _) = do
+  let typeName = GHC.showSDocUnsafe $ GHC.ppr name
+      exportedCount = 1 + DL.length cNames -- Counting the exported fields and constructors plus the data type
+      percentage = MC.collapseAfter $ MC.codeStyle config
+  exportableCount <- return . DM.fromMaybe 0 =<< UP.getExportableCount _module typeName
+  return $ collapseDecision exportableCount exportedCount percentage
+  where
+    collapseDecision :: Int -> Int -> Int -> GHC.IE GHC.GhcPs
+    collapseDecision exportableCount exportedCount percentage
+      | exportedCount * 100 >= percentage * exportableCount = GHC.IEThingAll GHC.noExtField name
+      | otherwise = ie
+reduceIE _ _ x = return x
 
 traverseModules :: [String] -> Maybe String -> [String] -> IO (HM.HashMap String MT.MetaModule)
 traverseModules customExtensions maybeDumpDir =
@@ -74,14 +91,15 @@ traverseModules customExtensions maybeDumpDir =
        moduleContent <- readFile modulePath
        (dynFlags, pState, _module) <- parseModuleContent modulePath moduleContent customExtensions
        let srcSpan = DM.fromMaybe GHC.noSrcSpan $ GHC.getLoc <$> GHC.hsmodName _module
-           (_, [annSrcSpan]) = DL.head . DL.filter ((== GHC.AnnWhere) . snd . fst) $ GHC.annotations pState
+           (_, srcSpanArr) = DL.head . DL.filter ((== GHC.AnnWhere) . snd . fst) $ GHC.annotations pState
+           annSrcSpan = DL.head srcSpanArr
            coords = getXCoord srcSpan annSrcSpan
            moduleName =
              maybe "<interactive>" (\(GHC.L _ _moduleName) -> GHC.moduleNameString _moduleName) $ GHC.hsmodName _module
            metaModule =
              DM.maybe
-               (MT.MetaModule moduleName (Just modulePath) HM.empty coords)
-               (\(MT.MetaModule name _ specMap _) -> MT.MetaModule name (Just modulePath) specMap coords) $
+               (MT.MetaModule moduleName (Just modulePath) HM.empty coords (Just _module))
+               (\(MT.MetaModule name _ specMap _ _) -> MT.MetaModule name (Just modulePath) specMap coords (Just _module)) $
              HM.lookup moduleName metaModules
            _metaModules = HM.insert moduleName metaModule metaModules
        minimalImports <- findMinimalImport maybeDumpDir moduleName
@@ -101,14 +119,16 @@ traverseModules customExtensions maybeDumpDir =
     parseImpDecl ::
          GHC.DynFlags -> HM.HashMap String MT.MetaModule -> GHC.ImportDecl GHC.GhcPs -> HM.HashMap String MT.MetaModule
     parseImpDecl dynFlags metaModules importDecl = do
-      let (GHC.ImportDecl _ _ mName _ _ _ _ _ _ specList) = importDecl
-          name = GHC.moduleNameString $ GHC.unLoc mName
-      case specList of
-        Just (hiding, GHC.unLoc -> specs) -> do
-          let metaModule = HM.lookupDefault (MT.MetaModule name Nothing HM.empty Nothing) name metaModules
-          if hiding
-            then metaModules
-            else HM.insert name (DF.foldl (addImportSpec dynFlags) metaModule specs) metaModules
+      case importDecl of
+        GHC.ImportDecl _ _ mName _ _ _ _ _ _ specList -> do
+          let name = GHC.moduleNameString $ GHC.unLoc mName
+          case specList of
+            Just (hiding, GHC.unLoc -> specs) -> do
+              let metaModule = HM.lookupDefault (MT.MetaModule name Nothing HM.empty Nothing Nothing) name metaModules
+              if hiding
+                then metaModules
+                else HM.insert name (DF.foldl (addImportSpec dynFlags) metaModule specs) metaModules
+            _ -> metaModules
         _ -> metaModules
 
 findMinimalImport :: Maybe String -> String -> IO [GHC.ImportDecl GHC.GhcPs]

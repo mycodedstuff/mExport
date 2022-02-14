@@ -9,7 +9,8 @@ import qualified MExport.Config as CC
 import qualified MExport.Parser as LP
 import qualified MExport.Pretty as LP
 import qualified MExport.Types as MT
-import qualified MExport.Utils as LU
+import qualified MExport.Utils.Utils as LU
+import qualified MExport.Utils.Writer as UW
 
 mExport :: CC.Config -> IO (MT.Project MT.PrettyModule)
 mExport config = do
@@ -21,5 +22,5 @@ mExport config = do
   project <- LP.parser config state
   putStrLn $ "Parsed all modules successfully!"
   let prettyModules = LP.prettifyExports config project
-  when (CC.writeOnFile config) $ LU.writeExports prettyModules
+  when (CC.writeOnFile config) $ UW.writeExports prettyModules
   return $ MT.Project projectPath prettyModules
