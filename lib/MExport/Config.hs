@@ -5,6 +5,7 @@ data CodeStyle =
     { indent :: Int
     , collapseAfter :: Int
     }
+  deriving (Show)
 
 data Config =
   Config
@@ -16,9 +17,10 @@ data Config =
     , extensions :: [String]
     , dumpDir :: Maybe String
     }
+  deriving (Show)
 
-getConfig :: Config
-getConfig =
+defaultConfig :: Config
+defaultConfig =
   Config
     { codeStyle = CodeStyle {indent = 2, collapseAfter = 100}
     , writeOnFile = True

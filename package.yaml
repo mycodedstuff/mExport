@@ -7,12 +7,13 @@ default-extensions:
   - DeriveFunctor
   - DeriveGeneric
   - DuplicateRecordFields
+  - FlexibleContexts
   - LambdaCase
   - OverloadedStrings
-  - TypeApplications
+  - RecordWildCards
   - TemplateHaskell
+  - TypeApplications
   - ViewPatterns
-  - FlexibleContexts
 
 ghc-options:
   - -O2
@@ -40,9 +41,12 @@ executables:
     source-dirs: src
     dependencies:
       - base
+      - directory
+      - filepath
       - mExport
       - optparse-applicative
       - text
+      - yaml
 
 tests:
   mexport-test:

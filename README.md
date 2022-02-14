@@ -58,9 +58,10 @@ For cli options run `mexport --help`
 
 CLI Options:
 ```shell
-mExport - minimize export list of haskell modules
+mExport 0.0.1 - minimize export list of haskell modules
 
-Usage: mexport [--version | [--path DIR] [--analyze] [--extensions GHCEXT] [--dump-dir DIR] [--indent NUM] [--collapse NUM]]
+Usage: mexport [--version | [--path DIR] [--analyze] [--extensions GHCEXT] 
+                 [--dump-dir DIR] [--indent NUM] [--collapse NUM]]
 
 Available options:
   --version                Print the version
@@ -69,8 +70,20 @@ Available options:
                            project can be parsed
   --extensions GHCEXT      Comma separated GHC Language extensions
   --dump-dir DIR           GHC dump directory path
-  --indent NUM             Indentation for the exports (default: 2)
+  --indent NUM             Indentation for the exports
   --collapse NUM           Exports everything of a type if NUM or more
-                           percentage is exported (default: 100)
+                           percentage is exported
   -h,--help                Show this help text
+```
+
+You can also provide some options using a yaml configuration file
+
+Create a `.mexport.yaml` inside the project directory, `mExport` will detect the file itself
+```yaml
+indent: 2
+collapse: 80
+dump-dir: /foo/bar
+extensions:
+  - BangPatterns
+  - TypeApplications
 ```
