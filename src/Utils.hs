@@ -17,7 +17,7 @@ getAction config =
 options :: CC.Config -> Parser T.Action
 options config =
   flag' T.ShowVersion (long "version" <> help "Print the version") <|>
-  T.Run <$> (mkConfig <$> projectPath <*> analyze <*> customExtensions <*> indent <*> collapse)
+  T.Run <$> (mkConfig <$> projectPath <*> analyze <*> customExtensions <*> dumpDir <*> indent <*> collapse)
   where
     projectPath = strOption (long "path" <> help "Path of Haskell project" <> showDefault <> value "." <> metavar "DIR")
     analyze = switch (long "analyze" <> help "Analyze the Haskell project, helps in verifying if project can be parsed")
@@ -30,10 +30,12 @@ options config =
         auto
         (long "collapse" <>
          help "Exports everything of a type if NUM % is exported" <> showDefault <> value 0 <> metavar "NUM")
-    mkConfig path _analyze extensions _indent _collapse =
+    dumpDir = optional $ strOption (long "dump-dir" <> help "GHC dump directory path" <> metavar "DIR")
+    mkConfig path _analyze extensions _dumpDir _indent _collapse =
       config
         { CC.projectPath = path
         , CC.writeOnFile = not _analyze
         , CC.extensions = mkExtensions extensions
+        , CC.dumpDir = _dumpDir
         , CC.codeStyle = CC.CodeStyle {CC.indent = _indent, CC.collapseAfter = _collapse}
         }
