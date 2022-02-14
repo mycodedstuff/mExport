@@ -20,7 +20,7 @@ data Config =
 getConfig :: Config
 getConfig =
   Config
-    { codeStyle = CodeStyle {indent = 2, collapseAfter = 0}
+    { codeStyle = CodeStyle {indent = 2, collapseAfter = 100}
     , writeOnFile = True
     , singleListExport = False
     , projectPath = "."

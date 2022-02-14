@@ -29,7 +29,7 @@ options config =
       option
         auto
         (long "collapse" <>
-         help "Exports everything of a type if NUM % is exported" <> showDefault <> value 0 <> metavar "NUM")
+         help "Exports everything of a type if NUM or more percentage is exported" <> showDefault <> value 100 <> metavar "NUM")
     dumpDir = optional $ strOption (long "dump-dir" <> help "GHC dump directory path" <> metavar "DIR")
     mkConfig path _analyze extensions _dumpDir _indent _collapse =
       config

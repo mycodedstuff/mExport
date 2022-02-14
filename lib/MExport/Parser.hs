@@ -79,8 +79,6 @@ reduceIE config (Just _module) ie@(GHC.IEThingWith _ name _ cNames _) = do
   where
     collapseDecision :: Int -> Int -> Int -> GHC.IE GHC.GhcPs
     collapseDecision exportableCount exportedCount percentage
-      | exportableCount == exportedCount = GHC.IEThingAll GHC.noExtField name
-      | percentage == 0 = ie
       | exportedCount * 100 >= percentage * exportableCount = GHC.IEThingAll GHC.noExtField name
       | otherwise = ie
 reduceIE _ _ x = return x
