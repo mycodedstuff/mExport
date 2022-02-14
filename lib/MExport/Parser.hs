@@ -75,9 +75,14 @@ reduceIE config (Just _module) ie@(GHC.IEThingWith _ name _ cNames _) = do
       exportedCount = 1 + DL.length cNames -- Counting the exported fields and constructors plus the data type
       percentage = MC.collapseAfter $ MC.codeStyle config
   exportableCount <- return . DM.fromMaybe 0 =<< UP.getExportableCount _module typeName
-  if exportedCount * 100 <= percentage * exportableCount
-    then return $ GHC.IEThingAll GHC.noExtField name
-    else return ie
+  return $ collapseDecision exportableCount exportedCount percentage
+  where
+    collapseDecision :: Int -> Int -> Int -> GHC.IE GHC.GhcPs
+    collapseDecision exportableCount exportedCount percentage
+      | exportableCount == exportedCount = GHC.IEThingAll GHC.noExtField name
+      | percentage == 0 = ie
+      | exportedCount * 100 >= percentage * exportableCount = GHC.IEThingAll GHC.noExtField name
+      | otherwise = ie
 reduceIE _ _ x = return x
 
 traverseModules :: [String] -> Maybe String -> [String] -> IO (HM.HashMap String MT.MetaModule)
@@ -87,8 +92,7 @@ traverseModules customExtensions maybeDumpDir =
        putStrLn $ "Parsing file: " ++ modulePath
        moduleContent <- readFile modulePath
        (dynFlags, pState, _module) <- parseModuleContent modulePath moduleContent customExtensions
-       let imports = GHC.unLoc <$> GHC.hsmodImports _module
-           srcSpan = DM.fromMaybe GHC.noSrcSpan $ GHC.getLoc <$> GHC.hsmodName _module
+       let srcSpan = DM.fromMaybe GHC.noSrcSpan $ GHC.getLoc <$> GHC.hsmodName _module
            (_, srcSpanArr) = DL.head . DL.filter ((== GHC.AnnWhere) . snd . fst) $ GHC.annotations pState
            annSrcSpan = DL.head srcSpanArr
            coords = getXCoord srcSpan annSrcSpan
