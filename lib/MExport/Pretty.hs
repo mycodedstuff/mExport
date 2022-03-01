@@ -1,20 +1,21 @@
 module MExport.Pretty where
 
-import Prelude
+import Control.Lens
 
 import qualified Data.Text as DT
 import qualified Outputable as GHC (ppr, showSDocUnsafe)
 import qualified SrcLoc as GHC (unLoc)
 
-import qualified MExport.Config as CC
+import qualified MExport.Accessor as MA
+import qualified MExport.Config as MC
 import qualified MExport.Types as MT
 
-prettifyExports :: CC.Config -> MT.Project MT.Module -> [MT.PrettyModule]
+prettifyExports :: MC.Config -> MT.Project MT.Module -> [MT.PrettyModule]
 prettifyExports config project =
-  let modules = MT._modules project
-      style = CC.codeStyle config
-      singleListExport = CC.singleListExport config
-      indent = DT.replicate (CC.indent style) " "
+  let modules = project ^. MA.modules
+      style = MC.codeStyle config
+      singleListExport = MC.singleListExport config
+      indent = DT.replicate (MC.indent style) " "
    in printExports indent singleListExport <$> modules
   where
     printExports :: DT.Text -> Bool -> MT.Module -> MT.PrettyModule

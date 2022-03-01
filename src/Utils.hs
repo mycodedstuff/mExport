@@ -5,7 +5,6 @@ module Utils
   ) where
 
 import Options.Applicative
-import Prelude
 
 import qualified Data.Maybe as DM
 import qualified Data.Text as DT

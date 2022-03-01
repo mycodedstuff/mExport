@@ -21,3 +21,4 @@
 #### Fixes
 - Handle case when where keyword isn't present Setup.hs
 - Fix case when two files with same module name are present in different dir
+- Import may define package name to resolve ambiguity (e.g. import qualified "unordered-containers" Data.HashSet as HashSet)

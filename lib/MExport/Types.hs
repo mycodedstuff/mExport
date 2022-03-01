@@ -2,12 +2,13 @@ module MExport.Types where
 
 import qualified Data.HashMap.Strict as HM
 import qualified Data.Text as DT
-import qualified GHC.Hs as GHC (GhcPs, HsModule, IE, LIE)
+import qualified DynFlags as GHC (DynFlags)
+import qualified GHC.Hs as GHC (GhcPs, HsModule, IE, ImportDecl, LIE)
 import qualified SrcLoc as GHC (Located)
 
-type ModuleMap = HM.HashMap String Module
-
 type SpecMap = HM.HashMap String (GHC.IE GHC.GhcPs)
+
+type PkgMetaMap = HM.HashMap String (Package ModuleInfo, HM.HashMap String ModuleInfo)
 
 data Project a =
   Project
@@ -24,14 +25,50 @@ data Module =
     , _exportSpecs :: GHC.Located [GHC.LIE GHC.GhcPs]
     }
 
-data MetaModule =
-  MetaModule
+data ModuleInfo =
+  ModuleInfo
     { _name :: String
-    , _path :: Maybe String
+    , _path :: String
     , _specMap :: SpecMap
     , _xCoords :: Maybe XCoord
-    , _parsedModule :: Maybe (GHC.HsModule GHC.GhcPs)
+    , _parsedModule :: GHC.HsModule GHC.GhcPs
+    , _imports :: [GHC.ImportDecl GHC.GhcPs]
+    , _dynFlags :: GHC.DynFlags
     }
+
+data Package m =
+  Package
+    { _pkgName :: String
+    , _pkgModules :: [m]
+    , _srcDir :: [String]
+    , _dependencies :: [String]
+    , _pkgType :: PackageType
+    , _dumpDir :: Maybe String
+    }
+  deriving (Show)
+
+data PackageType
+  = Executable
+  | Library
+  | SubLibrary
+  | TestSuite
+  | Benchmark
+  deriving (Show, Eq)
+
+data ModuleMetadata =
+  ModuleMetadata
+    { _name :: String
+    , _path :: String
+    }
+  deriving (Show)
+
+data ProjectInfo m =
+  ProjectInfo
+    { _projectName :: String
+    , _path :: String
+    , _packages :: [Package m]
+    }
+  deriving (Show)
 
 data PrettyModule =
   PrettyModule
@@ -41,13 +78,6 @@ data PrettyModule =
     , _exportCoords :: Maybe XCoord
     }
   deriving (Show, Eq)
-
-data State =
-  State
-    { _rootDir :: String
-    , _modulePaths :: [String]
-    }
-  deriving (Show)
 
 -- PrettyState Brackets Spaces
 data PrettyState =
@@ -64,3 +94,5 @@ data PrettyState =
 data XCoord =
   XCoord Int Int Int Int
   deriving (Show, Eq)
+
+data Builder = STACK | CABAL

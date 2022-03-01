@@ -1,0 +1,117 @@
+cabal-version: 1.12
+
+-- This file has been generated from package.yaml by hpack version 0.34.4.
+--
+-- see: https://github.com/sol/hpack
+
+name:           mExport
+version:        0.0.1
+author:         Aman Singh
+maintainer:     Aman Singh
+license:        MPL-2.0
+license-file:   LICENSE
+build-type:     Simple
+
+library
+  exposed-modules:
+      MExport
+      MExport.Accessor
+      MExport.Config
+      MExport.Parser
+      MExport.Parser.Cabal
+      MExport.Pretty
+      MExport.Types
+      MExport.Utils.Parser
+      MExport.Utils.Utils
+      MExport.Utils.Writer
+  other-modules:
+      Paths_mExport
+  hs-source-dirs:
+      lib
+  default-extensions:
+      BangPatterns
+      DeriveFunctor
+      DeriveGeneric
+      DuplicateRecordFields
+      FlexibleContexts
+      LambdaCase
+      OverloadedStrings
+      RecordWildCards
+      TemplateHaskell
+      TypeApplications
+      ViewPatterns
+  ghc-options: -O2 -j4 -Wall -Wredundant-constraints -Wincomplete-record-updates -Wincomplete-uni-patterns -ddump-minimal-imports
+  build-depends:
+      Cabal
+    , base
+    , bytestring
+    , containers
+    , directory
+    , filepath
+    , ghc-lib-parser
+    , lens
+    , pretty
+    , process
+    , text
+    , unordered-containers
+  default-language: Haskell2010
+
+executable mexport
+  main-is: Main.hs
+  other-modules:
+      Types
+      Utils
+      Paths_mExport
+  hs-source-dirs:
+      src
+  default-extensions:
+      BangPatterns
+      DeriveFunctor
+      DeriveGeneric
+      DuplicateRecordFields
+      FlexibleContexts
+      LambdaCase
+      OverloadedStrings
+      RecordWildCards
+      TemplateHaskell
+      TypeApplications
+      ViewPatterns
+  ghc-options: -O2 -j4 -Wall -Wredundant-constraints -Wincomplete-record-updates -Wincomplete-uni-patterns -ddump-minimal-imports
+  build-depends:
+      base
+    , directory
+    , filepath
+    , mExport
+    , optparse-applicative
+    , text
+    , yaml
+  default-language: Haskell2010
+
+test-suite mexport-test
+  type: exitcode-stdio-1.0
+  main-is: Main.hs
+  other-modules:
+      Paths_mExport
+  hs-source-dirs:
+      test
+  default-extensions:
+      BangPatterns
+      DeriveFunctor
+      DeriveGeneric
+      DuplicateRecordFields
+      FlexibleContexts
+      LambdaCase
+      OverloadedStrings
+      RecordWildCards
+      TemplateHaskell
+      TypeApplications
+      ViewPatterns
+  ghc-options: -O2 -j4 -Wall -Wredundant-constraints -Wincomplete-record-updates -Wincomplete-uni-patterns -ddump-minimal-imports
+  build-depends:
+      base
+    , hspec
+    , mExport
+    , pretty-simple
+    , text
+    , unordered-containers
+  default-language: Haskell2010
