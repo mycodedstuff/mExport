@@ -167,7 +167,7 @@ getDumpDir _ _ projectDir pkgName pkgType MT.STACK = do
   case mDistDir of
     Just distDir ->
       case pkgType of
-        MT.Library -> return $ Just $ SF.joinPath [projectDir, distDir]
+        MT.Library -> return $ Just $ SF.joinPath [projectDir, distDir, "build"]
         _ -> return $ Just $ SF.joinPath [projectDir, distDir, "build", pkgName, pkgName ++ "-tmp"]
     Nothing -> return Nothing
 getDumpDir projectName projectVersion projectDir pkgName pkgType MT.CABAL = do
