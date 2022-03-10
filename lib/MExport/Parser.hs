@@ -57,8 +57,7 @@ parser :: MC.Config -> MT.ProjectInfo MT.ModuleMetadata -> IO (MT.Project MT.Mod
 parser config (MT.ProjectInfo projectName projectDir packages) = do
   putStrLn $ "Parsing project " ++ projectName
   let customExtensions = MC.extensions config
-      maybeDumpDir = MC.dumpDir config
-  metaPkgs <- transformPackages maybeDumpDir customExtensions packages
+  metaPkgs <- transformPackages customExtensions packages
   pkgMetaMap <-
     DF.foldlM
       (\pkgMap pkg -> do
@@ -114,15 +113,14 @@ parser config (MT.ProjectInfo projectName projectDir packages) = do
             _ -> return pkgMetaMap
         _ -> return pkgMetaMap
 
-transformPackages :: Maybe String -> [String] -> [MT.Package MT.ModuleMetadata] -> IO [MT.Package MT.ModuleInfo]
-transformPackages maybeDumpDir customExtensions packages =
+transformPackages :: [String] -> [MT.Package MT.ModuleMetadata] -> IO [MT.Package MT.ModuleInfo]
+transformPackages customExtensions =
   mapM
     (\pkg -> do
        let pkgName = pkg ^. MA.pkgName
            pkgDumpDir = pkg ^. MA.dumpDir
        moduleInfos <- mapM (parseModule pkgName pkgDumpDir) $ pkg ^. MA.pkgModules
        return $ pkg {MT._pkgModules = moduleInfos})
-    packages
   where
     parseModule :: String -> Maybe String -> MT.ModuleMetadata -> IO MT.ModuleInfo
     parseModule pkgName pkgDumpDir MT.ModuleMetadata {..} = do
@@ -130,9 +128,8 @@ transformPackages maybeDumpDir customExtensions packages =
       moduleContent <- readFile _path
       (dynFlags, pState, _module) <- parseModuleContent _path moduleContent customExtensions
       let coords = getXCoord pState _module
-          mDumpDir = maybeDumpDir <|> pkgDumpDir
       mMinimalImports <-
-        case mDumpDir of
+        case pkgDumpDir of
           Just dumpDir -> findMinimalImport dumpDir _name
           Nothing -> return Nothing
       let moduleImports =
@@ -210,7 +207,7 @@ findMetadataFromName moduleName package packages =
 -- Takes SrcSpan of ModuleName and where keyword and returns XCoord
 getXCoord :: GHC.PState -> GHC.HsModule GHC.GhcPs -> DM.Maybe MT.XCoord
 getXCoord pState _module = do
-  let srcSpan = DM.fromMaybe GHC.noSrcSpan $ GHC.getLoc <$> GHC.hsmodName _module
+  let srcSpan = maybe GHC.noSrcSpan GHC.getLoc (GHC.hsmodName _module)
   (_, srcSpanArr) <- MU.headMaybe . DL.filter ((== GHC.AnnWhere) . snd . fst) $ GHC.annotations pState
   annSrcSpan <- MU.headMaybe srcSpanArr
   case (srcSpan, annSrcSpan) of

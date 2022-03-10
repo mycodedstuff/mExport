@@ -26,7 +26,7 @@ getAction =
 options :: Parser T.Action
 options =
   flag' T.ShowVersion (long "version" <> help "Print the version") <|>
-  T.Run <$> (mkArgs <$> projectPath <*> analyze <*> customExtensions <*> dumpDir <*> indent <*> collapse)
+  T.Run <$> (mkArgs <$> projectPath <*> analyze <*> customExtensions <*> indent <*> collapse)
   where
     projectPath = strOption (long "path" <> help "Path of Haskell project" <> showDefault <> value "." <> metavar "DIR")
     analyze = switch (long "analyze" <> help "Analyze the Haskell project, helps in verifying if project can be parsed")
@@ -39,13 +39,11 @@ options =
       option
         auto
         (long "collapse" <> help "Exports everything of a type if NUM or more percentage is exported" <> metavar "NUM")
-    dumpDir = optional $ strOption (long "dump-dir" <> help "GHC dump directory path" <> metavar "DIR")
-    mkArgs path _analyze extensions _dumpDir _indent _collapse =
+    mkArgs path _analyze extensions _indent _collapse =
       T.MExportArgs
         { T.projectPathArg = path
         , T.analyseArg = _analyze
         , T.extensionsArg = mkExtensions <$> extensions
-        , T.dumpDirArg = _dumpDir
         , T.indentArg = _indent
         , T.collapseArg = _collapse
         }
@@ -59,7 +57,6 @@ mkConfig defaultConfig T.MExportArgs {..} = do
       { MC.projectPath = projectPathArg
       , MC.writeOnFile = not analyseArg
       , MC.extensions = DM.fromMaybe (MC.extensions updatedConfig) extensionsArg
-      , MC.dumpDir = dumpDirArg <|> (MC.dumpDir updatedConfig)
       , MC.codeStyle =
           MC.CodeStyle
             { MC.indent = DM.fromMaybe (MC.indent updatedCodeStyle) indentArg
@@ -77,7 +74,7 @@ getConfigFromYaml defaultConfig path = do
       result <- Y.decodeFileEither file
       case result of
         Left e -> error (show e)
-        Right config -> applyConfig file config
+        Right config -> applyConfig config
   where
     findConfigFile :: String -> String -> IO (Maybe String)
     findConfigFile homeDir curDir = do
@@ -88,21 +85,13 @@ getConfigFromYaml defaultConfig path = do
             Just configFile -> return $ Just $ curDir SF.</> configFile
             Nothing -> findConfigFile homeDir $ SF.takeDirectory curDir
         else return Nothing
-    applyConfig :: String -> T.MExportConfig -> IO MC.Config
-    applyConfig (SF.takeDirectory -> configDir) T.MExportConfig {..} = do
+    applyConfig :: T.MExportConfig -> IO MC.Config
+    applyConfig T.MExportConfig {..} = do
       let defaultCodeStyle = MC.codeStyle defaultConfig
-          abDumpDir =
-            case dumpDir of
-              Just dir ->
-                if SF.isAbsolute dir
-                  then Just dir
-                  else Just $ SF.normalise $ configDir SF.</> dir
-              Nothing -> Nothing
       return $
         defaultConfig
           { MC.codeStyle = defaultCodeStyle {MC.indent = indent, MC.collapseAfter = collapse}
           , MC.extensions = extensions
-          , MC.dumpDir = abDumpDir
           }
 
 version :: String

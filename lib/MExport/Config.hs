@@ -15,7 +15,6 @@ data Config =
     , projectPath :: String
     , excludeDir :: [String]
     , extensions :: [String]
-    , dumpDir :: Maybe String
     }
   deriving (Show)
 
@@ -28,5 +27,4 @@ defaultConfig =
     , projectPath = "."
     , excludeDir = [".stack-work", ".git"]
     , extensions = []
-    , dumpDir = Nothing
     }
