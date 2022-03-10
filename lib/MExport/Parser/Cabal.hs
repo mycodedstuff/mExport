@@ -96,7 +96,7 @@ mkPackageFromLibrary ::
      String -> String -> String -> MT.Builder -> MT.PackageType -> Cabal.Library -> IO (MT.Package MT.ModuleMetadata)
 mkPackageFromLibrary projectName projectVersion projectPath builder pkgType library = do
   let exposedModules = Cabal.exposedModules library
-      libName = DM.fromMaybe "library" $ Cabal.unUnqualComponentName <$> Cabal.libraryNameString (Cabal.libName library)
+      libName = maybe "library" Cabal.unUnqualComponentName (Cabal.libraryNameString (Cabal.libName library))
   dumpDir <- getDumpDir projectName projectVersion projectPath libName pkgType builder
   (hsSrcDirs, moduleNames, dependencies) <- parseBuildInfo projectPath $ Cabal.libBuildInfo library
   exModules <- pairModuleWithPath projectPath hsSrcDirs exposedModules
@@ -192,7 +192,7 @@ getDumpDir projectName projectVersion projectDir pkgName pkgType MT.CABAL = do
         MT.Executable -> return $ Just $ SF.joinPath [distDir, "x", pkgName, "build", pkgName, pkgName ++ "-tmp"]
         MT.TestSuite -> return $ Just $ SF.joinPath [distDir, "t", pkgName, "build", pkgName, pkgName ++ "-tmp"]
         MT.Benchmark -> return $ Just $ SF.joinPath [distDir, "b", pkgName, "build", pkgName, pkgName ++ "-tmp"]
-        MT.SubLibrary -> return $ Just $ distDir --FIXME: Check sub libraries build path
+        MT.SubLibrary -> return $ Just $ SF.joinPath [distDir, "l", pkgName, "build", pkgName]
     Nothing -> return Nothing
 
 runCommand :: String -> IO String
