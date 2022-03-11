@@ -23,6 +23,7 @@ jobs:
     name: Build on ${{ matrix.os }} using ${{ matrix.builder }}
     runs-on: ${{ matrix.os }}
     strategy:
+      fail-fast: true
       matrix:
         ghc: ['8.8.3']
         cabal: ['3.6.2.0']
@@ -59,7 +60,7 @@ jobs:
     - uses: haya14busa/action-cond@v1
       id: install_deps
       with:
-        cond: ${{ matrix.builder == "stack" }}
+        cond: ${{ matrix.builder == 'stack' }}
         if_true: "stack build --dependencies-only"
         if_false: "cabal v2-build --dependencies-only"
 
@@ -69,7 +70,7 @@ jobs:
     - uses: haya14busa/action-cond@v1
       id: build_cmd
       with:
-        cond: ${{ matrix.builder == "stack" }}
+        cond: ${{ matrix.builder == 'stack' }}
         if_true: "stack build"
         if_false: "cabal v2-build"
     
@@ -116,7 +117,7 @@ jobs:
     - uses: haya14busa/action-cond@v1
       id: install_deps
       with:
-        cond: ${{ matrix.builder == "stack" }}
+        cond: ${{ matrix.builder == 'stack' }}
         if_true: "stack test --dependencies-only"
         if_false: "cabal v2-test --dependencies-only"
 
@@ -126,7 +127,7 @@ jobs:
     - uses: haya14busa/action-cond@v1
       id: test_cmd
       with:
-        cond: ${{ matrix.builder == "stack" }}
+        cond: ${{ matrix.builder == 'stack' }}
         if_true: "stack test"
         if_false: "cabal v2-test"
     
