@@ -159,7 +159,6 @@ Stack:
 -}
 getDumpDir :: String -> String -> String -> String -> MT.PackageType -> MT.Builder -> IO (Maybe String)
 getDumpDir _ _ projectDir pkgName pkgType MT.STACK = do
-  putStrLn =<< runCommand "stack path --dist-dir"
   mDistDir <-
     return . MU.headMaybe =<<
     filterM (\p -> SD.doesPathExist $ SF.joinPath [projectDir, p]) . lines =<<
@@ -201,3 +200,4 @@ runCommand cmd = do
   if errCode == SE.ExitSuccess
     then return stdOut
     else error $ "Exception occurred: " ++ stdErr
+
