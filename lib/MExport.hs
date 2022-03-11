@@ -23,3 +23,4 @@ mExport config = do
   let prettyModules = LP.prettifyExports config project
   when (CC.writeOnFile config) $ UW.writeExports prettyModules
   return $ MT.Project projectPath prettyModules
+
