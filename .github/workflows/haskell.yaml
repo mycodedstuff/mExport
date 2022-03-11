@@ -25,7 +25,7 @@ jobs:
     strategy:
       fail-fast: true
       matrix:
-        ghc: ['8.8.3']
+        ghc: ['8.10.7']
         cabal: ['3.6.2.0']
         stack: ['2.7.5']
         builder: ['stack', 'cabal']
@@ -82,8 +82,9 @@ jobs:
     name: Test on ${{ matrix.os }} using ${{ matrix.builder }}
     runs-on: ${{ matrix.os }}
     strategy:
+      fail-fast: true
       matrix:
-        ghc: ['8.8.3']
+        ghc: ['8.10.7']
         cabal: ['3.6.2.0']
         stack: ['2.7.5']
         builder: ['stack', 'cabal']
