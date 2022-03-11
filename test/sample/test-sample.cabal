@@ -1,0 +1,33 @@
+cabal-version: 1.12
+
+-- This file has been generated from package.yaml by hpack version 0.34.4.
+--
+-- see: https://github.com/sol/hpack
+
+name:           test-sample
+version:        0.0.1
+author:         Aman Singh
+maintainer:     Aman Singh
+build-type:     Simple
+
+flag smuggler2
+  description: Runs smuggler2 to automatically rewrite module imports to produce a minimal set.
+  manual: True
+  default: False
+
+executable test-sample
+  main-is: Main.hs
+  other-modules:
+      Config
+      Utils
+      Paths_test_sample
+  hs-source-dirs:
+      src
+  ghc-options: -O2 -Wall -ddump-minimal-imports
+  build-depends:
+      base
+  if flag(smuggler2)
+    ghc-options: -fplugin=Smuggler2.Plugin -fplugin-opt=Smuggler2.Plugin:MinimiseImports -fplugin-opt=Smuggler2.Plugin:NoExportProcessing
+    build-depends:
+        smuggler2
+  default-language: Haskell2010

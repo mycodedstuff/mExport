@@ -3,10 +3,10 @@ module MExport.Utils.Utils
   , findModules
   , headMaybe
   , findFirstInText
+  , findCabalFile
   ) where
 
 import Control.Monad
-import Prelude
 
 import qualified Data.List as DL
 import qualified Data.Text as DT
@@ -58,3 +58,15 @@ findModules config projectPath = do
                then listFiles curPath excludeDir
                else return [curPath])
           dirContents
+
+-- Find the project's .cabal file
+findCabalFile :: String -> IO String
+findCabalFile dir = do
+  maybeFile <- return . headMaybe . filter (SF.isExtensionOf "cabal") =<< SD.listDirectory dir
+  case maybeFile of
+    Just file -> return $ dir SF.</> file
+    Nothing -> do
+      let upDir = SF.takeDirectory dir
+      if upDir == dir
+        then error "No .cabal file found!"
+        else findCabalFile upDir

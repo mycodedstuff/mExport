@@ -1,7 +1,6 @@
 module Main where
 
 import Control.Monad
-import Prelude
 
 import qualified MExport as ME
 import qualified MExport.Config as CC

@@ -22,16 +22,21 @@ ghc-options:
   - -Wredundant-constraints
   - -Wincomplete-record-updates
   - -Wincomplete-uni-patterns
+  - -ddump-minimal-imports
 
 library:
   source-dirs: lib
   dependencies:
     - base
+    - bytestring
     - containers
+    - Cabal
     - directory
     - filepath
     - ghc-lib-parser
     - lens
+    - pretty
+    - process
     - text
     - unordered-containers
 

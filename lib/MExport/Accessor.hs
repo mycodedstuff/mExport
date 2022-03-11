@@ -1,7 +1,16 @@
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE FunctionalDependencies #-}
 module MExport.Accessor where
 
-import Control.Lens (makeLenses)
+import Control.Lens (makeFieldsNoPrefix)
 
 import qualified MExport.Types as MT
 
-makeLenses ''MT.MetaModule
+makeFieldsNoPrefix ''MT.Project
+
+makeFieldsNoPrefix ''MT.Package
+
+makeFieldsNoPrefix ''MT.ModuleMetadata
+
+makeFieldsNoPrefix ''MT.ModuleInfo

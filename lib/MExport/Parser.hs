@@ -2,13 +2,13 @@
 
 module MExport.Parser where
 
+import Control.Applicative ((<|>))
 import Control.Lens ((^.))
 import Control.Monad
 import qualified Data.Foldable as DF
 import qualified Data.HashMap.Strict as HM
 import qualified Data.List as DL
 import qualified Data.Maybe as DM
-import Prelude
 import qualified System.Directory as SD
 import qualified System.FilePath as SF
 
@@ -51,20 +51,112 @@ import qualified MExport.Accessor as MA
 import qualified MExport.Config as MC
 import qualified MExport.Types as MT
 import qualified MExport.Utils.Parser as UP
+import qualified MExport.Utils.Utils as MU
 
-parser :: MC.Config -> MT.State -> IO (MT.Project MT.Module)
-parser config (MT.State rootDir modulePaths) = do
+parser :: MC.Config -> MT.ProjectInfo MT.ModuleMetadata -> IO (MT.Project MT.Module)
+parser config (MT.ProjectInfo projectName projectDir packages) = do
+  putStrLn $ "Parsing project " ++ projectName
   let customExtensions = MC.extensions config
-      maybeDumpDir = MC.dumpDir config
-  metaModules <- return . HM.elems =<< traverseModules customExtensions maybeDumpDir modulePaths
-  projectModules <- mapM (transform config) $ filter (DM.isJust . (^. MA.path)) metaModules
-  return $ MT.Project rootDir projectModules
+  metaPkgs <- transformPackages customExtensions packages
+  pkgMetaMap <-
+    DF.foldlM
+      (\pkgMap pkg -> do
+         DF.foldlM
+           (\pkgMap' moduleInfo -> do
+              let pkgName = pkg ^. MA.pkgName
+                  moduleImports = moduleInfo ^. MA.imports
+                  moduleName = moduleInfo ^. MA.name
+                  infoMap =
+                    HM.insertWith (\_ m -> m) moduleName moduleInfo $ snd $ HM.lookupDefault (pkg, HM.empty) pkgName pkgMap'
+                  pkgMInfoMap = HM.insert pkgName (pkg, infoMap) pkgMap'
+              putStrLn $ "Processing imports of " ++ moduleName ++ " of " ++ pkgName
+              DF.foldlM (parseImpDecl moduleName metaPkgs pkg) pkgMInfoMap moduleImports)
+           pkgMap
+           (pkg ^. MA.pkgModules))
+      HM.empty
+      metaPkgs
+  modules <- mapM (transform' config) $ HM.foldl (\moduleArr (_, metaMap) -> moduleArr ++ (HM.elems metaMap)) [] pkgMetaMap
+  return $ MT.Project projectDir modules
+  where
+    addImportSpec :: MT.ModuleInfo -> GHC.LIE GHC.GhcPs -> MT.ModuleInfo
+    addImportSpec moduleInfo (GHC.unLoc -> impSpec) = do
+      let specMap = moduleInfo ^. MA.specMap
+          dynFlags = moduleInfo ^. MA.dynFlags
+          idName = getIdentifier dynFlags impSpec
+          exportMap = HM.insertWith (getImpPreference dynFlags) idName impSpec specMap
+      moduleInfo {MT._specMap = exportMap}
+    parseImpDecl ::
+         String
+      -> [MT.Package MT.ModuleInfo]
+      -> MT.Package MT.ModuleInfo
+      -> MT.PkgMetaMap
+      -> GHC.ImportDecl GHC.GhcPs
+      -> IO MT.PkgMetaMap
+    parseImpDecl moduleName packages package pkgMetaMap importDecl = do
+      case importDecl of
+        GHC.ImportDecl _ _ mName _ _ _ _ _ _ specList -> do
+          let name = GHC.moduleNameString $ GHC.unLoc mName
+          case specList of
+            Just (hiding, GHC.unLoc -> specs) -> do
+              let mTuple = findMetadataFromName name package packages
+              case mTuple of
+                Just (pkg, moduleInfo) ->
+                  if hiding
+                    then return pkgMetaMap
+                    else do
+                      let pkgName = pkg ^. MA.pkgName
+                          infoMap = snd $ HM.lookupDefault (pkg, HM.empty) pkgName pkgMetaMap
+                          moduleInfo' = DF.foldl addImportSpec (HM.lookupDefault moduleInfo name infoMap) specs
+                          infoMap' = HM.insert name moduleInfo' infoMap
+                      return $ HM.insert pkgName (pkg, infoMap') pkgMetaMap
+                Nothing -> return pkgMetaMap
+            _ -> return pkgMetaMap
+        _ -> return pkgMetaMap
 
-transform :: MC.Config -> MT.MetaModule -> IO MT.Module
-transform config (MT.MetaModule name (Just path) specMap coords _module) = do
-  exportList <- mapM (reduceIE config _module) $ sortIEList $ HM.elems specMap
+transformPackages :: [String] -> [MT.Package MT.ModuleMetadata] -> IO [MT.Package MT.ModuleInfo]
+transformPackages customExtensions =
+  mapM
+    (\pkg -> do
+       let pkgName = pkg ^. MA.pkgName
+           pkgDumpDir = pkg ^. MA.dumpDir
+       moduleInfos <- mapM (parseModule pkgName pkgDumpDir) $ pkg ^. MA.pkgModules
+       return $ pkg {MT._pkgModules = moduleInfos})
+  where
+    parseModule :: String -> Maybe String -> MT.ModuleMetadata -> IO MT.ModuleInfo
+    parseModule pkgName pkgDumpDir MT.ModuleMetadata {..} = do
+      putStrLn $ "Parsing module " ++ _name ++ " ~> " ++ _path
+      moduleContent <- readFile _path
+      (dynFlags, pState, _module) <- parseModuleContent _path moduleContent customExtensions
+      let coords = getXCoord pState _module
+      mMinimalImports <-
+        case pkgDumpDir of
+          Just dumpDir -> findMinimalImport dumpDir _name
+          Nothing -> return Nothing
+      let moduleImports =
+            case mMinimalImports of
+              Just minimalImports -> minimalImports
+              Nothing -> GHC.unLoc <$> GHC.hsmodImports _module
+      return $ MT.ModuleInfo _name _path HM.empty coords _module moduleImports dynFlags
+
+transform' :: MC.Config -> MT.ModuleInfo -> IO MT.Module
+transform' config (MT.ModuleInfo name path specMap coords _module _ _) = do
+  exportList <- mapM (reduceIE config (Just _module)) $ sortIEList $ HM.elems specMap
   return $ MT.Module name path coords $ GHC.L GHC.noSrcSpan $ (GHC.L GHC.noSrcSpan) <$> exportList
-transform _ (MT.MetaModule name _ _ _ _) = error $ "FilePath not found for module: " ++ name
+
+printPackageDebug :: MT.PkgMetaMap -> IO MT.PkgMetaMap
+printPackageDebug pkgMInfoMap = do
+  putStrLn "Printing Details: -----"
+  DF.forM_
+    (HM.elems pkgMInfoMap)
+    (\(pkg, metaMap) -> do
+       putStrLn $ "Package: " ++ (pkg ^. MA.pkgName)
+       let modules = HM.elems metaMap
+       DF.forM_
+         modules
+         (\moduleInfo' -> do
+            putStrLn $ "Module: " ++ (moduleInfo' ^. MA.name)
+            putStrLn $ "specMap: " ++ show (HM.map (getIdentifier (moduleInfo' ^. MA.dynFlags)) $ moduleInfo' ^. MA.specMap)))
+  return pkgMInfoMap
 
 sortIEList :: [GHC.IE GHC.GhcPs] -> [GHC.IE GHC.GhcPs]
 sortIEList = DL.sortOn (GHC.showSDocUnsafe . GHC.ppr)
@@ -83,56 +175,8 @@ reduceIE config (Just _module) ie@(GHC.IEThingWith _ name _ cNames _) = do
       | otherwise = ie
 reduceIE _ _ x = return x
 
-traverseModules :: [String] -> Maybe String -> [String] -> IO (HM.HashMap String MT.MetaModule)
-traverseModules customExtensions maybeDumpDir =
-  DF.foldlM
-    (\metaModules modulePath -> do
-       putStrLn $ "Parsing file: " ++ modulePath
-       moduleContent <- readFile modulePath
-       (dynFlags, pState, _module) <- parseModuleContent modulePath moduleContent customExtensions
-       let srcSpan = DM.fromMaybe GHC.noSrcSpan $ GHC.getLoc <$> GHC.hsmodName _module
-           (_, srcSpanArr) = DL.head . DL.filter ((== GHC.AnnWhere) . snd . fst) $ GHC.annotations pState
-           annSrcSpan = DL.head srcSpanArr
-           coords = getXCoord srcSpan annSrcSpan
-           moduleName =
-             maybe "<interactive>" (\(GHC.L _ _moduleName) -> GHC.moduleNameString _moduleName) $ GHC.hsmodName _module
-           metaModule =
-             DM.maybe
-               (MT.MetaModule moduleName (Just modulePath) HM.empty coords (Just _module))
-               (\(MT.MetaModule name _ specMap _ _) -> MT.MetaModule name (Just modulePath) specMap coords (Just _module)) $
-             HM.lookup moduleName metaModules
-           _metaModules = HM.insert moduleName metaModule metaModules
-       minimalImports <- findMinimalImport maybeDumpDir moduleName
-       let moduleImports =
-             if null minimalImports
-               then GHC.unLoc <$> GHC.hsmodImports _module
-               else minimalImports
-       return $ DF.foldl (parseImpDecl dynFlags) _metaModules moduleImports)
-    HM.empty
-  where
-    addImportSpec :: GHC.DynFlags -> MT.MetaModule -> GHC.LIE GHC.GhcPs -> MT.MetaModule
-    addImportSpec dynFlags metaModule (GHC.unLoc -> impSpec) = do
-      let specMap = metaModule ^. MA.specMap
-          idName = getIdentifier dynFlags impSpec
-          exportMap = HM.insertWith (getImpPreference dynFlags) idName impSpec specMap
-      metaModule {MT._specMap = exportMap}
-    parseImpDecl ::
-         GHC.DynFlags -> HM.HashMap String MT.MetaModule -> GHC.ImportDecl GHC.GhcPs -> HM.HashMap String MT.MetaModule
-    parseImpDecl dynFlags metaModules importDecl = do
-      case importDecl of
-        GHC.ImportDecl _ _ mName _ _ _ _ _ _ specList -> do
-          let name = GHC.moduleNameString $ GHC.unLoc mName
-          case specList of
-            Just (hiding, GHC.unLoc -> specs) -> do
-              let metaModule = HM.lookupDefault (MT.MetaModule name Nothing HM.empty Nothing Nothing) name metaModules
-              if hiding
-                then metaModules
-                else HM.insert name (DF.foldl (addImportSpec dynFlags) metaModule specs) metaModules
-            _ -> metaModules
-        _ -> metaModules
-
-findMinimalImport :: Maybe String -> String -> IO [GHC.ImportDecl GHC.GhcPs]
-findMinimalImport (Just dumpDir) moduleName = do
+findMinimalImport :: String -> String -> IO (Maybe [GHC.ImportDecl GHC.GhcPs])
+findMinimalImport dumpDir moduleName = do
   let importFile = dumpDir SF.</> moduleName <> ".imports"
   fileExist <- SD.doesFileExist importFile
   if fileExist
@@ -140,17 +184,38 @@ findMinimalImport (Just dumpDir) moduleName = do
       putStrLn $ "Using import dump file " ++ importFile
       importContent <- readFile importFile
       (_, _, _module) <- parseModuleContent importFile importContent []
-      return $ GHC.unLoc <$> GHC.hsmodImports _module
-    else putStrLn ("Import dump file not available: " ++ importFile) *> return []
-findMinimalImport Nothing _ = return []
+      return $ Just $ GHC.unLoc <$> GHC.hsmodImports _module
+    else putStrLn ("Import dump file not available: " ++ importFile) *> return Nothing
+
+findMetadataFromName ::
+     String -> MT.Package MT.ModuleInfo -> [MT.Package MT.ModuleInfo] -> Maybe (MT.Package MT.ModuleInfo, MT.ModuleInfo)
+findMetadataFromName moduleName package packages =
+  let mMetadata = MU.headMaybe $ filter (\MT.ModuleInfo {..} -> _name == moduleName) $ package ^. MA.pkgModules
+   in case mMetadata of
+        Just metadata -> Just (package, metadata)
+        Nothing ->
+          let deps = package ^. MA.dependencies
+              depPkgs = filter (\pkg -> (pkg ^. MA.pkgName) `elem` deps) packages
+           in foldl
+                (\result pkg ->
+                   case result of
+                     Just val -> Just val
+                     Nothing -> findMetadataFromName moduleName pkg packages)
+                Nothing
+                depPkgs
 
 -- Takes SrcSpan of ModuleName and where keyword and returns XCoord
-getXCoord :: GHC.SrcSpan -> GHC.SrcSpan -> DM.Maybe MT.XCoord
-getXCoord (GHC.RealSrcSpan hSpan) (GHC.RealSrcSpan wSpan) =
-  let startSpan = GHC.realSrcSpanEnd hSpan
-      endSpan = GHC.realSrcSpanEnd wSpan
-   in Just $ MT.XCoord (GHC.srcLocLine startSpan) (GHC.srcLocCol startSpan) (GHC.srcLocLine endSpan) (GHC.srcLocCol endSpan)
-getXCoord _ _ = Nothing
+getXCoord :: GHC.PState -> GHC.HsModule GHC.GhcPs -> DM.Maybe MT.XCoord
+getXCoord pState _module = do
+  let srcSpan = maybe GHC.noSrcSpan GHC.getLoc (GHC.hsmodName _module)
+  (_, srcSpanArr) <- MU.headMaybe . DL.filter ((== GHC.AnnWhere) . snd . fst) $ GHC.annotations pState
+  annSrcSpan <- MU.headMaybe srcSpanArr
+  case (srcSpan, annSrcSpan) of
+    (GHC.RealSrcSpan hSpan, GHC.RealSrcSpan wSpan) -> do
+      let startSpan = GHC.realSrcSpanEnd hSpan
+          endSpan = GHC.realSrcSpanEnd wSpan
+      Just $ MT.XCoord (GHC.srcLocLine startSpan) (GHC.srcLocCol startSpan) (GHC.srcLocLine endSpan) (GHC.srcLocCol endSpan)
+    (_, _) -> Nothing
 
 getIdentifier :: GHC.DynFlags -> GHC.IE GHC.GhcPs -> String
 getIdentifier dynFlags =
