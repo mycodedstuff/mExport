@@ -20,38 +20,52 @@ on:
 
 jobs:
   build:
-
-    runs-on: ubuntu-latest
+    name: ${{ matrix.os }} build
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        ghc: ['8.8.3']
+        cabal: ['3.6.2.0']
+        stack: ['2.7.5']
+        os: [ubuntu-latest, macOS-latest, windows-latest]
 
     steps:
-    - name: Setup OS
-      run: sudo apt-get update && sudo apt-get -y install curl zstd
+    # - name: Setup OS
+    #   run: sudo apt-get update && sudo apt-get -y install curl zstd
     
     - uses: actions/checkout@v2
-    
-    - name: Install Stack
-      run: if [ -z $(which stack) ]; then curl -sSL https://get.haskellstack.org/ | sh; fi
-    
-    - name: Cache dependencies
-      uses: actions/cache@v2.1.7
-      env:
-        cache-name: cache-stack
+    - name: Setup Haskell
+      uses: haskell/actions/setup@v1
       with:
-        path: ~/.stack
-        key: ${{ runner.os }}-build-${{ env.cache-name }}-${{ hashFiles('stack.yaml') }}-${{ hashFiles('package.yaml') }} }}
-        restore-keys: |
-          ${{ runner.os }}-build-${{ env.cache-name }}-
-          ${{ runner.os }}-build-
-          ${{ runner.os }}-
-    
+        ghc-version: ${{ matrix.ghc }}
+        cabal-version: ${{ matrix.cabal }}
+        enable-stack: true
+        stack-version: ${{ matrix.stack }}
+
+    # - name: Install Stack
+    #   run: if [ -z $(which stack) ]; then curl -sSL https://get.haskellstack.org/ | sh; fi
+    # 
+    # - name: Cache dependencies
+    #   uses: actions/cache@v2.1.7
+    #   env:
+    #     cache-name: cache-stack
+    #   with:
+    #     path: ~/.stack
+    #     key: ${{ runner.os }}-build-${{ env.cache-name }}-${{ hashFiles('stack.yaml') }}-${{ hashFiles('package.yaml') }} }}
+    #     restore-keys: |
+    #       ${{ runner.os }}-build-${{ env.cache-name }}-
+    #       ${{ runner.os }}-build-
+    #       ${{ runner.os }}-
+    # 
     - name: Install GHC
       run: stack setup
     
     - name: Install dependencies
-      run: stack build --dependencies-only
+      run: stack build --test --bench --no-run-tests --no-run-benchmarks --dependencies-only
     
     - name: Build
-      run: stack build
+      run: stack build --test --bench --no-run-tests --no-run-benchmarks
     
     - name: Run tests
       run: stack test
+
