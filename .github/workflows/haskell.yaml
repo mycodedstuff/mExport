@@ -60,7 +60,7 @@ jobs:
       id: install_deps
       with:
         cond: ${{ matrix.builder == 'stack' }}
-        if_true: "stack build --dependencies-only"
+        if_true: "stack build --tests --dependencies-only"
         if_false: "cabal v2-build --dependencies-only"
 
     - name: Install dependencies
@@ -126,4 +126,4 @@ jobs:
         if_false: "cabal v2-test"
     
     - name: Test
-      run: "${{ steps.build_cmd.outputs.value }}" 
+      run: "${{ steps.test_cmd.outputs.value }}"
