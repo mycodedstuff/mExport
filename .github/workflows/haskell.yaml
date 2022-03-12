@@ -20,7 +20,7 @@ on:
 
 jobs:
   test:
-    name: Test on ${{ matrix.os }} using ${{ matrix.builder }}
+    name: Test on ${{ matrix.os }} using ${{ matrix.builder.tool }}
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: true
@@ -28,38 +28,41 @@ jobs:
         ghc: ['8.10.7']
         cabal: ['3.6.2.0']
         stack: ['2.7.5']
-        builder: ['stack', 'cabal']
+        builder: [{tool: 'stack', enable-stack: true}, {tool: 'cabal', enable-stack: false}]
         os: [ubuntu-latest, macOS-latest] # TODO: Added windows-latest
 
     steps: 
     - uses: actions/checkout@v2
-    - name: Cache dependencies
+
+    - name: Cache stack dependencies
+      if: ${{ matrix.builder.enable-stack }}
       uses: actions/cache@v2.1.7
-      env:
-        cache-name: cache-${{ matrix.builder }}
+      with:
+        path:
+          ~/.stack
+        key: ${{ runner.os }}-stack-deps-${{ ('stack.yaml') }}-${{ hashFiles('package.yaml') }}
+
+    - name: Cache cabal dependencies
+      if: ${{ matrix.builder.enable-stack }}
+      uses: actions/cache@v2.1.7
       with:
         path: |
-          ~/.stack
           ~/.cabal/packages
           ~/.cabal/store
-        key: ${{ runner.os }}-build-${{ env.cache-name }}-${{ hashFiles('stack.yaml') }}-${{ hashFiles('package.yaml') }} }}
-        restore-keys: |
-          ${{ runner.os }}-build-${{ env.cache-name }}-
-          ${{ runner.os }}-build-
-          ${{ runner.os }}-
+        key: ${{ runner.os }}-cabal-deps-${{ hashFiles('cabal.project') }}-${{ hashFiles('cabal.project.freeze') }}
 
     - name: Setup Haskell
       uses: haskell/actions/setup@v1
       with:
         ghc-version: ${{ matrix.ghc }}
         cabal-version: ${{ matrix.cabal }}
-        enable-stack: ${{ matrix.enable-stack }}
+        enable-stack: ${{ matrix.builder.enable-stack }}
         stack-version: ${{ matrix.stack }}
 
     - uses: haya14busa/action-cond@v1
       id: install_deps
       with:
-        cond: ${{ matrix.builder == 'stack' }}
+        cond: ${{ matrix.builder.enable-stack }}
         if_true: "stack build --test --dependencies-only"
         if_false: "cabal v2-build --enable-tests --dependencies-only"
 
@@ -69,7 +72,7 @@ jobs:
     - uses: haya14busa/action-cond@v1
       id: build_cmd
       with:
-        cond: ${{ matrix.builder == 'stack' }}
+        cond: ${{ matrix.builder.enable-stack }}
         if_true: "stack test"
         if_false: "cabal v2-test"
     
