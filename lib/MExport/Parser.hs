@@ -2,9 +2,7 @@
 
 module MExport.Parser where
 
-import Control.Applicative ((<|>))
 import Control.Lens ((^.))
-import Control.Monad
 import qualified Data.Foldable as DF
 import qualified Data.HashMap.Strict as HM
 import qualified Data.List as DL
@@ -70,7 +68,7 @@ parser config (MT.ProjectInfo projectName projectDir packages) = do
                     HM.insertWith (\_ m -> m) moduleName moduleInfo $ snd $ HM.lookupDefault (pkg, HM.empty) pkgName pkgMap'
                   pkgMInfoMap = HM.insert pkgName (pkg, infoMap) pkgMap'
               putStrLn $ "Processing imports of " ++ moduleName ++ " of " ++ pkgName
-              DF.foldlM (parseImpDecl moduleName metaPkgs pkg) pkgMInfoMap moduleImports)
+              DF.foldlM (parseImpDecl metaPkgs pkg) pkgMInfoMap moduleImports)
            pkgMap
            (pkg ^. MA.pkgModules))
       HM.empty
@@ -86,19 +84,18 @@ parser config (MT.ProjectInfo projectName projectDir packages) = do
           exportMap = HM.insertWith (getImpPreference dynFlags) idName impSpec specMap
       moduleInfo {MT._specMap = exportMap}
     parseImpDecl ::
-         String
-      -> [MT.Package MT.ModuleInfo]
+         [MT.Package MT.ModuleInfo]
       -> MT.Package MT.ModuleInfo
       -> MT.PkgMetaMap
       -> GHC.ImportDecl GHC.GhcPs
       -> IO MT.PkgMetaMap
-    parseImpDecl moduleName packages package pkgMetaMap importDecl = do
+    parseImpDecl infoPackages package pkgMetaMap importDecl = do
       case importDecl of
         GHC.ImportDecl _ _ mName _ _ _ _ _ _ specList -> do
           let name = GHC.moduleNameString $ GHC.unLoc mName
           case specList of
             Just (hiding, GHC.unLoc -> specs) -> do
-              let mTuple = findMetadataFromName name package packages
+              let mTuple = findMetadataFromName name package infoPackages
               case mTuple of
                 Just (pkg, moduleInfo) ->
                   if hiding
@@ -117,13 +114,12 @@ transformPackages :: [String] -> [MT.Package MT.ModuleMetadata] -> IO [MT.Packag
 transformPackages customExtensions =
   mapM
     (\pkg -> do
-       let pkgName = pkg ^. MA.pkgName
-           pkgDumpDir = pkg ^. MA.dumpDir
-       moduleInfos <- mapM (parseModule pkgName pkgDumpDir) $ pkg ^. MA.pkgModules
+       let pkgDumpDir = pkg ^. MA.dumpDir
+       moduleInfos <- mapM (parseModule pkgDumpDir) $ pkg ^. MA.pkgModules
        return $ pkg {MT._pkgModules = moduleInfos})
   where
-    parseModule :: String -> Maybe String -> MT.ModuleMetadata -> IO MT.ModuleInfo
-    parseModule pkgName pkgDumpDir MT.ModuleMetadata {..} = do
+    parseModule :: Maybe String -> MT.ModuleMetadata -> IO MT.ModuleInfo
+    parseModule pkgDumpDir MT.ModuleMetadata {..} = do
       putStrLn $ "Parsing module " ++ _name ++ " ~> " ++ _path
       moduleContent <- readFile _path
       (dynFlags, pState, _module) <- parseModuleContent _path moduleContent customExtensions

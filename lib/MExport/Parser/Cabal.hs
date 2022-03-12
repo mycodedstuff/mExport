@@ -4,7 +4,6 @@ import Control.Lens
 import Control.Monad
 import qualified Data.List as DL
 import qualified Data.Maybe as DM
-import qualified Data.Version as DV
 import qualified System.Directory as SD
 import qualified System.Exit as SE
 import qualified System.FilePath as SF

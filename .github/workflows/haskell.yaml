@@ -19,39 +19,63 @@ on:
       - 'package.yaml'
 
 jobs:
-  build:
+  test:
+    name: Test on ${{ matrix.os }} using ${{ matrix.builder }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: true
+      matrix:
+        ghc: ['8.10.7']
+        cabal: ['3.6.2.0']
+        stack: ['2.7.5']
+        builder: ['stack', 'cabal']
+        os: [ubuntu-latest, macOS-latest] # TODO: Added windows-latest
 
-    runs-on: ubuntu-latest
-
-    steps:
-    - name: Setup OS
-      run: sudo apt-get update && sudo apt-get -y install curl zstd
-    
+    steps: 
     - uses: actions/checkout@v2
-    
-    - name: Install Stack
-      run: if [ -z $(which stack) ]; then curl -sSL https://get.haskellstack.org/ | sh; fi
-    
-    - name: Cache dependencies
+
+    - name: Cache stack dependencies
+      if: ${{ matrix.builder == 'stack' }}
       uses: actions/cache@v2.1.7
-      env:
-        cache-name: cache-stack
       with:
-        path: ~/.stack
-        key: ${{ runner.os }}-build-${{ env.cache-name }}-${{ hashFiles('stack.yaml') }}-${{ hashFiles('package.yaml') }} }}
-        restore-keys: |
-          ${{ runner.os }}-build-${{ env.cache-name }}-
-          ${{ runner.os }}-build-
-          ${{ runner.os }}-
-    
-    - name: Install GHC
-      run: stack setup
-    
+        path:
+          ~/.stack
+        key: ${{ runner.os }}-stack-deps-${{ hashFiles('stack.yaml') }}-${{ hashFiles('package.yaml') }}
+
+    - name: Cache cabal dependencies
+      if: ${{ matrix.builder == 'cabal' }}
+      uses: actions/cache@v2.1.7
+      with:
+        path: |
+          ~/.cabal/packages
+          ~/.cabal/store
+        key: ${{ runner.os }}-cabal-deps-${{ hashFiles('cabal.project') }}-${{ hashFiles('cabal.project.freeze') }}
+
+    - name: Setup Haskell
+      uses: haskell/actions/setup@v1
+      with:
+        ghc-version: ${{ matrix.ghc }}
+        cabal-version: ${{ matrix.cabal }}
+        enable-stack: ${{ matrix.builder == 'stack' }}
+        stack-version: ${{ matrix.stack }}
+
+    - uses: haya14busa/action-cond@v1
+      id: install_deps
+      with:
+        cond: ${{ matrix.builder == 'stack' }}
+        if_true: "stack build --test --dependencies-only"
+        if_false: "cabal update && cabal v2-build --enable-tests --dependencies-only"
+
     - name: Install dependencies
-      run: stack build --dependencies-only
+      run: "${{ steps.install_deps.outputs.value }}"
+
+    - uses: haya14busa/action-cond@v1
+      id: test_cmd
+      with:
+        cond: ${{ matrix.builder == 'stack' }}
+        if_true: "stack test"
+        if_false: "cabal v2-test"
     
-    - name: Build
-      run: stack build
-    
-    - name: Run tests
-      run: stack test
+    - name: Build & Test
+      run: "${{ steps.test_cmd.outputs.value }}"
+
