@@ -20,7 +20,7 @@ on:
 
 jobs:
   test:
-    name: Test on ${{ matrix.os }} using ${{ matrix.builder.tool }}
+    name: Test on ${{ matrix.os }} using ${{ matrix.builder }}
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: true
@@ -28,14 +28,14 @@ jobs:
         ghc: ['8.10.7']
         cabal: ['3.6.2.0']
         stack: ['2.7.5']
-        builder: [{tool: 'stack', enable-stack: true}, {tool: 'cabal', enable-stack: false}]
+        builder: ['stack', 'cabal']
         os: [ubuntu-latest, macOS-latest] # TODO: Added windows-latest
 
     steps: 
     - uses: actions/checkout@v2
 
     - name: Cache stack dependencies
-      if: ${{ matrix.builder.enable-stack }}
+      if: ${{ matrix.builder == 'stack' }}
       uses: actions/cache@v2.1.7
       with:
         path:
@@ -43,7 +43,7 @@ jobs:
         key: ${{ runner.os }}-stack-deps-${{ ('stack.yaml') }}-${{ hashFiles('package.yaml') }}
 
     - name: Cache cabal dependencies
-      if: ${{ matrix.builder.enable-stack }}
+      if: ${{ matrix.builder == 'cabal' }}
       uses: actions/cache@v2.1.7
       with:
         path: |
@@ -56,13 +56,13 @@ jobs:
       with:
         ghc-version: ${{ matrix.ghc }}
         cabal-version: ${{ matrix.cabal }}
-        enable-stack: ${{ matrix.builder.enable-stack }}
+        enable-stack: ${{ matrix.enable-stack == 'stack' }}
         stack-version: ${{ matrix.stack }}
 
     - uses: haya14busa/action-cond@v1
       id: install_deps
       with:
-        cond: ${{ matrix.builder.enable-stack }}
+        cond: ${{ matrix.builder == 'stack' }}
         if_true: "stack build --test --dependencies-only"
         if_false: "cabal v2-build --enable-tests --dependencies-only"
 
@@ -70,12 +70,12 @@ jobs:
       run: "${{ steps.install_deps.outputs.value }}"
 
     - uses: haya14busa/action-cond@v1
-      id: build_cmd
+      id: test_cmd
       with:
-        cond: ${{ matrix.builder.enable-stack }}
+        cond: ${{ matrix.builder == 'stack' }}
         if_true: "stack test"
         if_false: "cabal v2-test"
     
     - name: Build & Test
-      run: "${{ steps.build_cmd.outputs.value }}" 
+      run: "${{ steps.test_cmd.outputs.value }}"
 
