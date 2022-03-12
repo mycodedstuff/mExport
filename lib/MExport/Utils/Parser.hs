@@ -24,7 +24,7 @@ getExportableCount _module typeName = do
              return $ total + count)
           (1 + DL.length consDecls) -- Added 1 to count the data type itself with the count of data constructors
           consDecls
-    Nothing -> return $ Nothing
+    Nothing -> return Nothing
   where
     _getCount :: GHC.ConDecl GHC.GhcPs -> IO Int
     _getCount consDecl = do
@@ -48,7 +48,4 @@ getExportableCount _module typeName = do
             else arr
         _ -> arr
     isTypeOfName :: GHC.Outputable (GHC.IdP pass) => String -> GHC.TyClDecl pass -> Bool
-    isTypeOfName name typeDecl =
-      if GHC.isDataDecl typeDecl
-        then (GHC.showSDocUnsafe $ GHC.ppr $ GHC.tcdLName typeDecl) == name
-        else False
+    isTypeOfName name typeDecl = GHC.isDataDecl typeDecl && GHC.showSDocUnsafe (GHC.ppr $ GHC.tcdLName typeDecl) == name
