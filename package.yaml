@@ -14,6 +14,7 @@ default-extensions:
   - TemplateHaskell
   - TypeApplications
   - ViewPatterns
+  - NamedFieldPuns
 
 ghc-options:
   - -O2

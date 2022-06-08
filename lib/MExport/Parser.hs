@@ -16,7 +16,7 @@ import DynFlags (FileSettings(..), Settings(..), defaultDynFlags)
 import qualified DynFlags as GHC
 import qualified FastString as GHC (mkFastString)
 import GHC.Fingerprint (fingerprint0)
-import qualified GHC.Hs as GHC (GhcPs, HsModule, hsmodImports, hsmodName)
+import qualified GHC.Hs as GHC (GhcPs, HsModule, hsmodExports, hsmodImports, hsmodName)
 import qualified GHC.Hs.Extension as GHC (noExtField)
 import qualified GHC.Hs.ImpExp as GHC
 import GHC.Platform
@@ -135,9 +135,58 @@ transformPackages customExtensions =
       return $ MT.ModuleInfo _name _path HM.empty coords _module moduleImports dynFlags
 
 transform' :: MC.Config -> MT.ModuleInfo -> IO MT.Module
-transform' config (MT.ModuleInfo name path specMap coords _module _ _) = do
-  exportList <- mapM (reduceIE config (Just _module)) $ sortIEList $ HM.elems specMap
+transform' config moduleInfo@(MT.ModuleInfo name path specMap coords _module _ _) = do
+  reducedExportList <- mapM (reduceIE config (Just _module)) $ sortIEList $ HM.elems specMap
+  exportList <- handleReExportedModules moduleInfo reducedExportList
   return $ MT.Module name path coords $ GHC.L GHC.noSrcSpan $ (GHC.L GHC.noSrcSpan) <$> exportList
+
+handleReExportedModules :: MT.ModuleInfo -> [GHC.IE GHC.GhcPs] -> IO [GHC.IE GHC.GhcPs]
+handleReExportedModules MT.ModuleInfo {..} exportList = do
+  let maybeModuleExports = GHC.unLoc <$> GHC.hsmodExports _parsedModule
+  case maybeModuleExports of
+    Just moduleExports -> do
+      DF.foldlM
+        (\expList export ->
+           case export of
+             GHC.IEModuleContents _ (GHC.moduleNameString . GHC.unLoc -> moduleName) -> do
+               let importedModules = findImportByName moduleName _imports
+               _exports <-
+                 DF.foldlM
+                   (\_expList ->
+                      \case
+                        GHC.ImportDecl {ideclHiding} ->
+                          case ideclHiding of
+                            Just (False, GHC.unLoc -> lieList) -> do
+                              let ieNameList = getIdentifier _dynFlags . GHC.unLoc <$> lieList
+                              return $ filter (not . flip elem ieNameList . getIdentifier _dynFlags) _expList
+                            _ -> return _expList
+                        _ -> return _expList)
+                   expList
+                   importedModules
+               return $ addIEToExportList _dynFlags export _exports
+             _ -> return expList)
+        exportList $
+        GHC.unLoc <$> moduleExports
+    Nothing -> return exportList
+
+findImportByName :: String -> [GHC.ImportDecl GHC.GhcPs] -> [GHC.ImportDecl GHC.GhcPs]
+findImportByName moduleName =
+  filter
+    (\case
+       GHC.ImportDecl {ideclName, ideclAs} ->
+         GHC.moduleNameString (GHC.unLoc ideclName) == moduleName ||
+         (GHC.moduleNameString . GHC.unLoc <$> ideclAs) == (Just moduleName)
+       _ -> False)
+
+findIEByName :: GHC.DynFlags -> String -> [GHC.IE GHC.GhcPs] -> Maybe (GHC.IE GHC.GhcPs)
+findIEByName dynFlags ie = MU.headMaybe . filter ((== ie) . getIdentifier dynFlags)
+
+addIEToExportList :: GHC.DynFlags -> GHC.IE GHC.GhcPs -> [GHC.IE GHC.GhcPs] -> [GHC.IE GHC.GhcPs]
+addIEToExportList dynFlags export exportList = do
+  let exportName = getIdentifier dynFlags export
+  if DM.isNothing $ findIEByName dynFlags exportName exportList
+    then export : exportList
+    else exportList
 
 printPackageDebug :: MT.PkgMetaMap -> IO MT.PkgMetaMap
 printPackageDebug pkgMInfoMap = do

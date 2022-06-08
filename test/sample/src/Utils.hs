@@ -1,4 +1,8 @@
-module Utils where
+module Utils (
+  module Config,
+  printString,
+  (>:>)
+) where
 
 import Config ( Config(_addExclamation) )
 import Prelude ( IO, String, ($), (++), (.), putStrLn )
